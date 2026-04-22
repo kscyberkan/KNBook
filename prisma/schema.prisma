@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  password     String
+  name         String
+  nickname     String?
+  bio          String?
+  province     String?
+  phone        String?
+  profileImage String?
+  coverImage   String?
+  token        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  posts        Post[]
+  reactions    Reaction[]
+  comments     Comment[]
+  sentMessages     Message[]  @relation("SentMessages")
+  receivedMessages Message[]  @relation("ReceivedMessages")
+  notifications    Notification[]
+  friendsAdded     Friendship[] @relation("FriendshipRequester")
+  friendsReceived  Friendship[] @relation("FriendshipAddressee")
+}
+
+model Post {
+  id         Int        @id @default(autoincrement())
+  userId     Int
+  text       String?
+  imageUrl   String?
+  videoUrl   String?
+  feeling    String?
+  stickerUrl String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions  Reaction[]
+  comments   Comment[]
+  sharedFromId Int?
+  sharedFrom   Post?    @relation("SharedPosts", fields: [sharedFromId], references: [id])
+  shares       Post[]   @relation("SharedPosts")
+}
+
+model Reaction {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  userId    Int
+  type      String   // ถูกใจ, รัก, ฮ่าๆ, ว้าว, เศร้า, โกรธ
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model Comment {
+  id         Int      @id @default(autoincrement())
+  postId     Int
+  userId     Int
+  text       String?
+  imageUrl   String?
+  stickerUrl String?
+  replyToId  Int?
+  createdAt  DateTime @default(now())
+
+  post           Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replyToComment Comment? @relation("CommentReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        Comment[] @relation("CommentReplies")
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  senderId   Int
+  receiverId Int
+  text       String?
+  fileUrl    String?
+  fileName   String?
+  fileType   String?  // image, video, file
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  type      String
+  fromName  String
+  fromImage String?
+  fromId    Int?
+  refId     Int?
+  message   String
+  read      Boolean  @default(false)
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Friendship {
+  id           Int      @id @default(autoincrement())
+  requesterId  Int
+  addresseeId  Int
+  status       String   @default("pending") // pending, accepted, blocked
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  requester    User     @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee    User     @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+}

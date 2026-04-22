@@ -1,0 +1,99 @@
+// Client → Server
+export enum PacketCS {
+    // Auth
+    LOGIN           = 1,
+    REGISTER        = 2,
+    LOGOUT          = 3,
+    RESUME          = 4,   // re-authenticate ด้วย token หลัง reconnect
+
+    // Post
+    CREATE_POST     = 10,
+    DELETE_POST     = 11,
+    GET_FEED        = 12,
+    GET_USER_POSTS  = 13,
+
+    // Reaction
+    REACT_POST      = 20,
+    UNREACT_POST    = 21,
+
+    // Comment
+    CREATE_COMMENT  = 30,
+    DELETE_COMMENT  = 31,
+
+    // Chat
+    SEND_MESSAGE    = 40,
+    GET_CONVERSATION = 41,
+    READ_MESSAGES   = 42,
+
+    // Notification
+    GET_NOTIFICATIONS       = 50,
+    MARK_NOTIFICATION_READ  = 51,
+    MARK_ALL_NOTIF_READ     = 52,
+
+    // Profile
+    UPDATE_PROFILE_IMAGE    = 60,
+    UPDATE_COVER_IMAGE      = 61,
+    UPDATE_PROFILE          = 62,
+
+    // Friend
+    SEND_FRIEND_REQUEST     = 70,
+    ACCEPT_FRIEND_REQUEST   = 71,
+    REMOVE_FRIEND           = 72,
+    GET_FRIENDS             = 73,
+    GET_FRIEND_STATUS       = 74,
+    GET_PENDING_REQUESTS    = 75,
+    GET_SENT_REQUESTS       = 76,
+    GET_FRIENDS_PANEL       = 77,  // เหมือน GET_FRIENDS แต่ตอบด้วย FRIEND_LIST_PANEL
+    HANDLE_FRIEND_NOTIF     = 78,  // accept/decline จาก notification
+}
+
+// Server → Client
+export enum PacketSC {
+    // Auth
+    ACCEPT_LOGIN    = 1,
+    REJECT_LOGIN    = 2,
+    ACCEPT_REGISTER = 3,
+    REJECT_REGISTER = 4,
+    RESUME_OK       = 5,   // server ยืนยัน session แล้ว
+
+    // Post
+    POST_LIST       = 10,
+    USER_POST_LIST  = 14,   // แยกจาก POST_LIST เพื่อไม่ชนกัน
+    NEW_POST        = 11,       // broadcast: มีโพสต์ใหม่
+    POST_DELETED    = 12,
+
+    // Reaction
+    REACTION_UPDATE = 20,       // broadcast: reaction เปลี่ยน
+
+    // Comment
+    NEW_COMMENT     = 30,       // broadcast: comment ใหม่
+
+    // Chat
+    MESSAGE_LIST    = 40,
+    NEW_MESSAGE     = 41,       // push: ได้รับข้อความใหม่
+    MESSAGE_READ    = 42,       // push: ข้อความถูกอ่านแล้ว
+
+    // Notification
+    NOTIFICATION_LIST   = 50,
+    NEW_NOTIFICATION    = 51,   // push: แจ้งเตือนใหม่
+
+    // Error
+    ERROR           = 99,
+
+    // Profile
+    PROFILE_IMAGE_UPDATED = 60,
+    COVER_IMAGE_UPDATED   = 61,
+    PROFILE_UPDATED       = 62,
+
+    // Friend
+    FRIEND_STATUS         = 70,
+    FRIEND_LIST           = 71,  // ตอบกลับ GET_FRIENDS (PageManager)
+    FRIEND_LIST_PANEL     = 75,  // ตอบกลับ GET_FRIENDS (FriendsPanel)
+    PENDING_REQUESTS      = 72,
+    SENT_REQUESTS         = 73,
+    FRIEND_REQUEST_RECV   = 74,
+    FRIEND_UPDATE       = 76,
+
+    // Force logout
+    FORCE_LOGOUT    = 80,
+}

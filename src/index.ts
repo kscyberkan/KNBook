@@ -1,0 +1,85 @@
+import { serve } from 'bun';
+import index from './index.html';
+import Packet from '@network/packet';
+import { handler, onDisconnect } from '@network/handler';
+import { handleUpload } from '@network/upload';
+import type { WS } from '@network/session';
+import { join } from 'path';
+
+// suppress pg deprecation warning จาก @prisma/adapter-pg internals
+const _emitWarning = process.emitWarning.bind(process);
+(process as NodeJS.Process).emitWarning = (warning: string | Error, ...args: unknown[]) => {
+    const msg = typeof warning === 'string' ? warning : warning.message;
+    if (msg.includes('already executing a query')) return;
+    (_emitWarning as (...a: unknown[]) => void)(warning, ...args);
+};
+
+const server = serve({
+    routes: {
+        // WebSocket upgrade
+        '/ws': (req) => {
+            if (server.upgrade(req, { data: {} })) return;
+            return new Response('WebSocket only', { status: 426 });
+        },
+
+        // File upload
+        '/api/upload': {
+            async POST(req) {
+                return handleUpload(req);
+            },
+        },
+
+        // Get single post
+        '/api/post/:id': async (req) => {
+            const { getPostById } = await import('@/prisma/post');
+            const { normalizePostForApi } = await import('@network/handler');
+            const post = await getPostById(Number(req.params.id));
+            if (!post) return new Response('Not found', { status: 404 });
+            return Response.json(normalizePostForApi(post));
+        },
+
+        // Static file serving — รองรับ sub-folder
+        '/pictures/*': (req) => {
+            const url  = new URL(req.url);
+            const path = url.pathname.replace('/pictures/', '');
+            return new Response(Bun.file(join(process.cwd(), 'pictures', path)));
+        },
+
+        '/videos/*': (req) => {
+            const url  = new URL(req.url);
+            const path = url.pathname.replace('/videos/', '');
+            return new Response(Bun.file(join(process.cwd(), 'videos', path)));
+        },
+
+        // SPA fallback
+        '/*': index,
+    },
+
+    // Bun native WebSocket
+    websocket: {
+        open(_socket: WS) {
+            // รอ login packet ก่อน register session
+        },
+
+        async message(socket: WS, data: Buffer | string) {
+            const buf = typeof data === 'string'
+                ? new TextEncoder().encode(data)
+                : new Uint8Array(data);
+            const packet = new Packet(0);
+            packet.forceCopyBuffer(buf);
+            await handler(socket, packet);
+        },
+
+        close(socket: WS) {
+            onDisconnect(socket);
+        },
+    },
+
+    development: process.env.NODE_ENV !== 'production' && {
+        hmr: true,
+        console: true,
+    },
+});
+
+console.log(`🚀 Server running at ${server.url}`);
+console.log(`🔌 WebSocket at ws://${server.url.host}/ws`);
