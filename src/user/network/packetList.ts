@@ -59,6 +59,14 @@ export enum PacketCS {
     BLOCK_USER              = 97,
     UNBLOCK_USER            = 98,
     GET_BLOCKED_USERS       = 99,
+
+    // WebRTC signaling
+    CALL_OFFER              = 100,
+    CALL_ANSWER             = 101,
+    CALL_ICE                = 102,
+    CALL_END                = 103,
+
+    GET_UNREAD_MESSAGES     = 104,
 }
 
 // Server → Client
@@ -135,4 +143,13 @@ export enum PacketSC {
     // Block
     BLOCK_UPDATE    = 96,
     BLOCKED_LIST    = 97,
+
+    // WebRTC signaling
+    CALL_OFFER      = 100,
+    CALL_ANSWER     = 101,
+    CALL_ICE        = 102,
+    CALL_END        = 103,
+    CALL_INCOMING   = 104,
+
+    UNREAD_MESSAGES = 105,
 }

@@ -358,6 +358,10 @@ class NetworkClient {
         this.send(new Packet(PacketCS.GET_BOOKMARK_IDS));
     }
 
+    getUnreadMessages(): void {
+        this.send(new Packet(PacketCS.GET_UNREAD_MESSAGES));
+    }
+
     blockUser(targetId: number): void {
         const p = new Packet(PacketCS.BLOCK_USER);
         p.writeInt(targetId);
@@ -372,6 +376,30 @@ class NetworkClient {
 
     getBlockedUsers(): void {
         this.send(new Packet(PacketCS.GET_BLOCKED_USERS));
+    }
+
+    sendCallOffer(targetId: number, callType: 'audio' | 'video', sdp: string): void {
+        const p = new Packet(PacketCS.CALL_OFFER);
+        p.writeInt(targetId); p.writeString(callType); p.writeString(sdp);
+        this.send(p);
+    }
+
+    sendCallAnswer(targetId: number, sdp: string): void {
+        const p = new Packet(PacketCS.CALL_ANSWER);
+        p.writeInt(targetId); p.writeString(sdp);
+        this.send(p);
+    }
+
+    sendCallIce(targetId: number, candidate: string): void {
+        const p = new Packet(PacketCS.CALL_ICE);
+        p.writeInt(targetId); p.writeString(candidate);
+        this.send(p);
+    }
+
+    sendCallEnd(targetId: number): void {
+        const p = new Packet(PacketCS.CALL_END);
+        p.writeInt(targetId);
+        this.send(p);
     }
 
     reactMessage(messageId: number, emoji: string): void {

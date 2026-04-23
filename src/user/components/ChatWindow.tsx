@@ -25,9 +25,10 @@ interface ChatWindowProps {
   friend: User;
   onClose: () => void;
   onUserClick?: (user: User) => void;
+  onCall?: (callType: 'audio' | 'video') => void;
 }
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserClick }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserClick, onCall }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
@@ -46,6 +47,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
 
   useEffect(() => {
     net.getConversation(Number(friend.id), 0);
+    net.readMessages(Number(friend.id)); // mark as read ทันทีที่เปิด
 
     const unsubList = net.on(PacketSC.MESSAGE_LIST, (packet: Packet) => {
       const data = JSON.parse(packet.readString()) as any[];
@@ -155,8 +157,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
           </div>
         </div>
         <div className="flex items-center gap-0.5">
-          <button className="p-2 hover:bg-white/15 rounded-full transition-colors"><Phone size={16} /></button>
-          <button className="p-2 hover:bg-white/15 rounded-full transition-colors"><Video size={16} /></button>
+          <button onClick={() => onCall?.('audio')} className="p-2 hover:bg-white/15 rounded-full transition-colors" title="โทรด้วยเสียง"><Phone size={16} /></button>
+          <button onClick={() => onCall?.('video')} className="p-2 hover:bg-white/15 rounded-full transition-colors" title="Video call"><Video size={16} /></button>
           <button onClick={onClose} className="p-2 hover:bg-white/15 rounded-full transition-colors"><X size={17} /></button>
         </div>
       </div>

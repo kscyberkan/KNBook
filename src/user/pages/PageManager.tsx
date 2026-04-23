@@ -17,6 +17,7 @@ import auth from "../auth/function";
 import { modal } from "../../components/Modal";
 import { FriendsPanel } from "../components/FriendsPanel";
 import { PostModal } from "../components/PostModal";
+import { CallWindow, AnswerCallWindow, IncomingCallModal } from "../components/CallWindow";
 
 export type PageType = 'feed' | 'profile' | 'edit-profile' | 'bookmarks';
 
@@ -100,6 +101,9 @@ export default function PageManager() {
   const [openPostId, setOpenPostId] = useState<string | null>(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadPerUser, setUnreadPerUser] = useState<Record<string, number>>({});
+  const [activeCall, setActiveCall] = useState<{ friend: User; callType: 'audio' | 'video'; stream: MediaStream } | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{ fromId: number; fromName: string; fromAvatar: string; callType: 'audio' | 'video'; sdp: string } | null>(null);
+  const [answerCall, setAnswerCall] = useState<{ fromId: number; fromName: string; fromAvatar: string; callType: 'audio' | 'video'; sdp: string; stream: MediaStream } | null>(null);
   const mainScrollRef = useRef<HTMLElement>(null);
 
   useLayoutEffect(() => {
@@ -195,6 +199,30 @@ export default function PageManager() {
       });
     });
 
+    // โหลด unread messages ตอน mount
+    const unsubUnread = net.on(PacketSC.UNREAD_MESSAGES, (packet: Packet) => {
+      const rows = JSON.parse(packet.readString()) as { senderId: string; count: number }[];
+      const map: Record<string, number> = {};
+      let total = 0;
+      rows.forEach(r => { map[r.senderId] = r.count; total += r.count; });
+      setUnreadPerUser(map);
+      setUnreadMessages(total);
+    });
+    net.getUnreadMessages();
+
+    // incoming call
+    const unsubCall = net.on(PacketSC.CALL_INCOMING, (packet: Packet) => {
+      const fromId = packet.readInt();
+      const callType = packet.readString() as 'audio' | 'video';
+      const sdp = packet.readString();
+      const caller = friends.find(f => f.id === String(fromId));
+      setIncomingCall({
+        fromId, callType, sdp,
+        fromName: caller?.name ?? `User #${fromId}`,
+        fromAvatar: caller?.profileImage ?? '',
+      });
+    });
+
     // นับข้อความที่ยังไม่ได้อ่าน
     const unsubMsg = net.on(PacketSC.NEW_MESSAGE, (packet: Packet) => {
       const msg = JSON.parse(packet.readString()) as { senderId: string };
@@ -209,7 +237,7 @@ export default function PageManager() {
       });
     });
 
-    return () => { unsubNotifs(); unsubNew(); unsubFriends(); unsubOnline(); unsubAccepted(); unsubMsg(); };
+    return () => { unsubNotifs(); unsubNew(); unsubFriends(); unsubOnline(); unsubAccepted(); unsubUnread(); unsubCall(); unsubMsg(); };
   }, []);
 
   const markAllRead = () => {
@@ -613,6 +641,24 @@ export default function PageManager() {
                     navigateToProfile(user);
                     setActiveChat(null);
                   }}
+                  onCall={async (callType) => {
+                    try {
+                      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' });
+                      setActiveCall({ friend: activeChat, callType, stream });
+                    } catch (err: any) {
+                      console.error('[Call] getUserMedia error:', err?.name, err?.message, err);
+                      const msg = err?.name === 'NotAllowedError'
+                        ? 'กรุณาอนุญาตการเข้าถึงกล้อง/ไมโครโฟนในการตั้งค่าเบราว์เซอร์'
+                        : err?.name === 'NotFoundError'
+                        ? 'ไม่พบกล้องหรือไมโครโฟน'
+                        : err?.name === 'NotReadableError'
+                        ? 'กล้องหรือไมโครโฟนถูกใช้งานโดยแอปอื่นอยู่'
+                        : err?.name === 'OverconstrainedError'
+                        ? 'กล้องไม่รองรับความละเอียดที่ต้องการ'
+                        : `ไม่สามารถเข้าถึงได้: ${err?.name} - ${err?.message ?? err}`;
+                      modal.error(msg);
+                    }
+                  }}
                 />
               </motion.div>
             )}
@@ -696,6 +742,56 @@ export default function PageManager() {
         onClose={() => setOpenPostId(null)}
         onUserClick={navigateToProfile}
       />
+
+      {/* Call UI */}
+      <AnimatePresence>
+        {activeCall && (
+          <CallWindow
+            friend={activeCall.friend}
+            callType={activeCall.callType}
+            localStream={activeCall.stream}
+            onEnd={() => setActiveCall(null)}
+          />
+        )}
+        {answerCall && (
+          <AnswerCallWindow
+            fromId={answerCall.fromId}
+            fromName={answerCall.fromName}
+            fromAvatar={answerCall.fromAvatar}
+            callType={answerCall.callType}
+            remoteSdp={answerCall.sdp}
+            localStream={answerCall.stream}
+            onEnd={() => setAnswerCall(null)}
+          />
+        )}
+        {incomingCall && !activeCall && !answerCall && (
+          <IncomingCallModal
+            call={incomingCall}
+            onAccept={async () => {
+              try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: incomingCall.callType === 'video' });
+                setAnswerCall({ ...incomingCall, stream });
+                setIncomingCall(null);
+              } catch (err: any) {
+                const msg = err?.name === 'NotAllowedError'
+                  ? 'กรุณาอนุญาตการเข้าถึงกล้อง/ไมโครโฟนในการตั้งค่าเบราว์เซอร์'
+                  : err?.name === 'NotFoundError'
+                  ? 'ไม่พบกล้องหรือไมโครโฟน'
+                  : err?.name === 'NotReadableError'
+                  ? 'กล้องหรือไมโครโฟนถูกใช้งานโดยแอปอื่นอยู่'
+                  : `ไม่สามารถเข้าถึงได้: ${err?.message ?? err}`;
+                modal.error(msg);
+                net.sendCallEnd(incomingCall.fromId);
+                setIncomingCall(null);
+              }
+            }}
+            onReject={() => {
+              net.sendCallEnd(incomingCall.fromId);
+              setIncomingCall(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

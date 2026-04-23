@@ -6,7 +6,7 @@ import { getFeedPosts, getPostsByUser, createPost, deletePost } from '@/prisma/p
 import { upsertReaction, deleteReaction } from '@/prisma/reaction';
 import { createComment } from '@/prisma/comment';
 import prisma from '@/prisma/client';
-import { createMessage, getConversation, markMessagesRead } from '@/prisma/message';
+import { createMessage, getConversation, markMessagesRead, getUnreadPerSender } from '@/prisma/message';
 import { createNotification, upsertNotification, getNotifications, markNotificationRead, markAllNotificationsRead, markNotificationHandled } from '@/prisma/notification';
 import { createReport } from '@/prisma/report';
 import { addBookmark, removeBookmark, getBookmarks } from '@/prisma/bookmark';
@@ -65,6 +65,11 @@ const handlers = new Map<number, Handler>([
     [PacketCS.BLOCK_USER, recvBlockUser],
     [PacketCS.UNBLOCK_USER, recvUnblockUser],
     [PacketCS.GET_BLOCKED_USERS, recvGetBlockedUsers],
+    [PacketCS.CALL_OFFER, recvCallOffer],
+    [PacketCS.CALL_ANSWER, recvCallAnswer],
+    [PacketCS.CALL_ICE, recvCallIce],
+    [PacketCS.CALL_END, recvCallEnd],
+    [PacketCS.GET_UNREAD_MESSAGES, recvGetUnreadMessages],
 ]);
 
 // ─── Packet Queue ────────────────────────────────────────────────────────────
@@ -991,5 +996,64 @@ async function recvGetBlockedUsers(socket: WS, _packet: Packet): Promise<void> {
     const rows = await getBlockedUsers(userId);
     const p = new Packet(PacketSC.BLOCKED_LIST);
     p.writeString(JSON.stringify(rows.map(r => ({ id: String(r.blocked.id), name: r.blocked.name, profileImage: r.blocked.profileImage }))));
+    socket.send(p.toBuffer());
+}
+
+// ─── WebRTC Signaling ─────────────────────────────────────────────────────────
+
+async function recvCallOffer(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const targetId = packet.readInt();
+    const callType = packet.readString(); // 'audio' | 'video'
+    const sdp = packet.readString();
+
+    const p = new Packet(PacketSC.CALL_INCOMING);
+    p.writeInt(userId);
+    p.writeString(callType);
+    p.writeString(sdp);
+    sendToUser(targetId, p.toBuffer());
+}
+
+async function recvCallAnswer(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const targetId = packet.readInt();
+    const sdp = packet.readString();
+
+    const p = new Packet(PacketSC.CALL_ANSWER);
+    p.writeInt(userId);
+    p.writeString(sdp);
+    sendToUser(targetId, p.toBuffer());
+}
+
+async function recvCallIce(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const targetId = packet.readInt();
+    const candidate = packet.readString();
+
+    const p = new Packet(PacketSC.CALL_ICE);
+    p.writeInt(userId);
+    p.writeString(candidate);
+    sendToUser(targetId, p.toBuffer());
+}
+
+async function recvCallEnd(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const targetId = packet.readInt();
+
+    const p = new Packet(PacketSC.CALL_END);
+    p.writeInt(userId);
+    sendToUser(targetId, p.toBuffer());
+}
+
+async function recvGetUnreadMessages(socket: WS, _packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const rows = await getUnreadPerSender(userId);
+    const p = new Packet(PacketSC.UNREAD_MESSAGES);
+    p.writeString(JSON.stringify(rows.map(r => ({ senderId: String(r.senderId), count: r.count }))));
     socket.send(p.toBuffer());
 }

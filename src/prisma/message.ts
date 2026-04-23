@@ -54,3 +54,12 @@ export async function getUnreadCount(userId: number): Promise<number> {
         where: { receiverId: userId, readAt: null },
     });
 }
+
+export async function getUnreadPerSender(userId: number): Promise<{ senderId: number; count: number }[]> {
+    const rows = await prisma.message.groupBy({
+        by: ['senderId'],
+        where: { receiverId: userId, readAt: null },
+        _count: { id: true },
+    });
+    return rows.map(r => ({ senderId: r.senderId, count: r._count.id }));
+}
