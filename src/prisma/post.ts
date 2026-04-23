@@ -60,9 +60,16 @@ async function resolveSharedChain(post: any): Promise<any> {
     return resolve(post);
 }
 
-export async function getFeedPosts(limit = 10, offset = 0): Promise<PostWithRelations[]> {
+export async function getFeedPosts(userId: number, limit = 10, offset = 0): Promise<PostWithRelations[]> {
+    // หา blocked user IDs
+    const blocks = await prisma.block.findMany({
+        where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+        select: { blockerId: true, blockedId: true },
+    });
+    const blockedIds = blocks.map(b => b.blockerId === userId ? b.blockedId : b.blockerId);
+
     const posts = await prisma.post.findMany({
-        where: { isActive: true },
+        where: { isActive: true, userId: blockedIds.length > 0 ? { notIn: blockedIds } : undefined },
         include: postInclude,
         orderBy: { createdAt: 'desc' },
         take: limit,

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Send, StickyNote, Image as ImageIcon, X, Smile } from 'lucide-react';
-import { type User, type Comment } from '../types';
+import { type User, type Comment } from '../../types';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MentionInput } from './emoji/MentionInput';
 import { EmojiPicker } from './emoji/EmojiPicker';

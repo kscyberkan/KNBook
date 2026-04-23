@@ -1,5 +1,5 @@
 import storage from "../../utils/storage";
-import { type LoginData } from "../types/login_data";
+import { type LoginData } from "../../types/login_data";
 import { authFunction } from "./auth";
 import { Global } from "../Global";
 import net from "../network/client";

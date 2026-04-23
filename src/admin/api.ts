@@ -3,9 +3,21 @@
  * Token เก็บใน env ADMIN_TOKEN
  */
 import prisma from '../prisma/client';
-import { sessions } from '../network/session';
+import { sessions } from '../user/network/session';
 
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN ?? 'admin-secret';
+
+// rate limit: 60 req/นาที ต่อ IP
+const adminRateMap = new Map<string, { count: number; resetAt: number }>();
+function adminRateLimit(req: Request): boolean {
+    const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+    const now = Date.now();
+    const bucket = adminRateMap.get(ip);
+    if (!bucket || now > bucket.resetAt) { adminRateMap.set(ip, { count: 1, resetAt: now + 60_000 }); return true; }
+    if (bucket.count >= 60) return false;
+    bucket.count++;
+    return true;
+}
 
 export function requireAdminAuth(req: Request): boolean {
     const token = req.headers.get('x-admin-token');
@@ -100,9 +112,9 @@ export async function banUser(req: Request) {
 
     // ถ้าแบน — เตะออกจาก session ทันทีด้วย FORCE_LOGOUT
     if (banned) {
-        const { sessions } = await import('../network/session');
-        const { PacketSC } = await import('../network/packetList');
-        const Packet = (await import('../network/packet')).default;
+        const { sessions } = await import('../user/network/session');
+        const { PacketSC } = await import('../user/network/packetList');
+        const Packet = (await import('../user/network/packet')).default;
         const sock = sessions.get(userId);
         if (sock) {
             const p = new Packet(PacketSC.FORCE_LOGOUT);
@@ -244,6 +256,7 @@ export async function dismissReport(req: Request) {
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export async function handleAdminApi(req: Request): Promise<Response> {
+    if (!adminRateLimit(req)) return new Response(JSON.stringify({ error: 'Too many requests' }), { status: 429, headers: { 'Content-Type': 'application/json' } });
     if (!requireAdminAuth(req)) return unauthorized();
 
     const url = new URL(req.url);

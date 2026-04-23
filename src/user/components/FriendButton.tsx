@@ -1,6 +1,6 @@
 import React from 'react';
 import { UserPlus, UserCheck, UserX, Clock } from 'lucide-react';
-import { modal } from './Modal';
+import { modal } from '../../components/Modal';
 import net from '../network/client';
 
 type FriendStatus = 'none' | 'pending_sent' | 'pending_received' | 'accepted';

@@ -2,7 +2,7 @@ import auth from "../function";
 import net from "../../network/client";
 import { PacketSC } from "../../network/packetList";
 import Packet from "../../network/packet";
-import { modal } from "../../components/Modal";
+import { modal } from "../../../components/Modal";
 
 function SendLogin(username: string, password: string) {
     const unsubOk = net.on(PacketSC.ACCEPT_LOGIN, (packet: Packet) => {

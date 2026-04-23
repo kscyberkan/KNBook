@@ -18,7 +18,7 @@ import { authFunction } from '../auth';
 import { motion } from 'framer-motion';
 import { useTheme } from "../../../utils/theme";
 import { TH_PROVINCES } from '../../constants/th-provinces';
-import { modal } from '../../components/Modal';
+import { modal } from '../../../components/Modal';
 
 function ValidateData(registerData: RegisterData): boolean {
     if (registerData.name == "") { modal.warning("กรุณากรอกชื่อ"); return false; }

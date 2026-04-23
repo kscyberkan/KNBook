@@ -1,10 +1,10 @@
 import { serve } from 'bun';
-import index from './index.html';
+import index from './user/index.html';
 import adminIndex from './admin/index.html';
-import Packet from '@network/packet';
-import { handler, onDisconnect } from '@network/handler';
-import { handleUpload } from '@network/upload';
-import type { WS } from '@network/session';
+import Packet from '@user/network/packet';
+import { handler, onDisconnect } from '@user/network/handler';
+import { handleUpload } from '@user/network/upload';
+import type { WS } from '@user/network/session';
 import { join } from 'path';
 import { handleAdminApi } from './admin/api';
 
@@ -41,7 +41,7 @@ const server = serve({
         // Get single post
         '/api/post/:id': async (req) => {
             const { getPostById } = await import('@/prisma/post');
-            const { normalizePostForApi } = await import('@network/handler');
+            const { normalizePostForApi } = await import('@user/network/handler');
             const post = await getPostById(Number(req.params.id));
             if (!post) return new Response('Not found', { status: 404 });
             return Response.json(normalizePostForApi(post));

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ThumbsUp, MessageCircle, Share2, Image as ImageIcon, StickyNote, Send, Heart, Laugh, Annoyed, Frown, Angry, MoreHorizontal, X, Reply, Flag, Bookmark } from 'lucide-react';
 import { Global } from '../Global';
 import { VideoPlayer } from './VideoPlayer';
-import { type User, type Post, type Comment } from '../types';
+import { type User, type Post, type Comment } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import net, { PacketSC } from '../network/client';
 import Packet from '../network/packet';
@@ -10,7 +10,7 @@ import { EmojiPicker } from './emoji/EmojiPicker';
 import { EmojiText } from './emoji/EmojiText';
 import { MentionInput } from './emoji/MentionInput';
 import { CommentInput } from './CommentInput';
-import { modal } from './Modal';
+import { modal } from '../../components/Modal';
 
 interface FeedItemProps {
   postId?: string;
@@ -97,6 +97,80 @@ function formatRelativeTime(isoString?: string): string {
   return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function CommentBubble({ c, isReply, allUsers, onCommentUserClick, onReply, setShowReplies, setPrefillText, inlineInputRef }: {
+  c: Comment;
+  isReply?: boolean;
+  allUsers: User[];
+  onCommentUserClick?: (user: User) => void;
+  onReply: (c: Comment) => void;
+  setShowReplies: (v: boolean) => void;
+  setPrefillText: (v: string) => void;
+  inlineInputRef: React.MutableRefObject<{ focus: () => void; setText: (t: string) => void } | null>;
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const [editText, setEditText] = React.useState(c.text ?? '');
+  return (
+    <div className="flex items-start gap-2">
+      <img
+        src={c.user.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.user.name}`}
+        alt={c.user.name}
+        className="w-8 h-8 rounded-full object-cover flex-shrink-0 cursor-pointer"
+        onClick={() => onCommentUserClick?.(c.user)}
+      />
+      <div className="flex-1">
+        <div className="bg-gray-50 rounded-2xl px-3 py-2">
+          <span className="text-xs font-bold text-gray-900 cursor-pointer hover:text-[#5B65F2] transition-colors mr-1" onClick={() => onCommentUserClick?.(c.user)}>
+            {c.user.name}
+          </span>
+          {editing ? (
+            <div className="mt-1 flex gap-2">
+              <input autoFocus value={editText} onChange={e => setEditText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { net.editComment(Number(c.id), editText); setEditing(false); }
+                  if (e.key === 'Escape') setEditing(false);
+                }}
+                className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#5B65F2]"
+              />
+              <button onClick={() => { net.editComment(Number(c.id), editText); setEditing(false); }} className="text-xs text-[#5B65F2] font-medium">บันทึก</button>
+              <button onClick={() => setEditing(false)} className="text-xs text-gray-400">ยกเลิก</button>
+            </div>
+          ) : (
+            <>
+              {c.text && <EmojiText text={c.text} className="text-sm text-gray-700 whitespace-pre-wrap" mentionUsers={allUsers} onMentionClick={(u) => onCommentUserClick?.(u)} />}
+              {c.imageUrl && <img src={c.imageUrl} alt="comment" className="mt-1.5 max-w-[200px] rounded-xl object-cover" />}
+              {c.stickerUrl && <img src={c.stickerUrl} alt="sticker" className="mt-1 w-16 h-16 object-contain" />}
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-3 mt-1 ml-2">
+          <span className="text-[10px] text-gray-400">{formatRelativeTime(c.createdAt)}</span>
+          <button
+            onClick={() => {
+              if (isReply) {
+                setShowReplies(true);
+                setPrefillText(`@${c.user.name} `);
+                setTimeout(() => inlineInputRef.current?.focus(), 50);
+              } else {
+                onReply(c);
+              }
+            }}
+            className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-[#5B65F2] transition-colors"
+          >
+            <Reply size={12} /> ตอบกลับ
+          </button>
+          {c.user.id === Global.user.id && (
+            <>
+              <button onClick={() => { setEditText(c.text ?? ''); setEditing(true); }} className="text-[11px] text-gray-400 hover:text-[#5B65F2] transition-colors">แก้ไข</button>
+              <button onClick={() => modal.confirm('ลบความคิดเห็นนี้ใช่หรือไม่?', () => { if (!c.id.startsWith('init-')) net.deleteComment(Number(c.id)); }, 'ลบ')}
+                className="text-[11px] text-gray-400 hover:text-red-500 transition-colors">ลบ</button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CommentThread({ comment, replies, onCommentUserClick, onReply, comments, onComment, currentUser }: {
   comment: Comment;
   replies: Comment[];
@@ -123,73 +197,25 @@ function CommentThread({ comment, replies, onCommentUserClick, onReply, comments
     }
   }, [replies.length]);
 
-  const CommentBubble = ({ c, isReply }: { c: Comment; isReply?: boolean }) => (
-    <div className="flex items-start gap-2">
-      <img
-        src={c.user.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.user.name}`}
-        alt={c.user.name}
-        className="w-8 h-8 rounded-full object-cover flex-shrink-0 cursor-pointer"
-        onClick={() => onCommentUserClick?.(c.user)}
-      />
-      <div className="flex-1">
-        <div className="bg-gray-50 rounded-2xl px-3 py-2">
-          <span
-            className="text-xs font-bold text-gray-900 cursor-pointer hover:text-[#5B65F2] transition-colors mr-1"
-            onClick={() => onCommentUserClick?.(c.user)}
-          >
-            {c.user.name}
-          </span>
-          {c.text && <EmojiText text={c.text} className="text-sm text-gray-700 whitespace-pre-wrap" mentionUsers={allUsers} onMentionClick={(u) => onCommentUserClick?.(u)} />}
-          {c.imageUrl && <img src={c.imageUrl} alt="comment" className="mt-1.5 max-w-[200px] rounded-xl object-cover" />}
-          {c.stickerUrl && <img src={c.stickerUrl} alt="sticker" className="mt-1 w-16 h-16 object-contain" />}
-        </div>
-        <div className="flex items-center gap-3 mt-1 ml-2">
-          <span className="text-[10px] text-gray-400">{formatRelativeTime(c.createdAt)}</span>
-          <button
-            onClick={() => {
-              if (isReply) {
-                // reply ของ reply → focus inline input + @ชื่อ
-                setShowReplies(true);
-                setPrefillText(`@${c.user.name} `);
-                setTimeout(() => inlineInputRef.current?.focus(), 50);
-              } else {
-                onReply(c);
-              }
-            }}
-            className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-[#5B65F2] transition-colors"
-          >
-            <Reply size={12} /> ตอบกลับ
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
-      <CommentBubble c={comment} />
+      <CommentBubble c={comment} allUsers={allUsers} onCommentUserClick={onCommentUserClick} onReply={onReply} setShowReplies={setShowReplies} setPrefillText={setPrefillText} inlineInputRef={inlineInputRef} />
       {replies.length > 0 && (
         <div className="ml-10 mt-1.5">
-          {/* เส้นแนวตั้ง + ปุ่มดู replies */}
           <div className="relative pl-4 border-l-2 border-gray-100 space-y-2">
             {!showReplies && replies.length > 0 ? (
-              <button
-                onClick={() => setShowReplies(true)}
-                className="text-xs text-[#5B65F2] font-semibold hover:underline py-1"
-              >
+              <button onClick={() => setShowReplies(true)} className="text-xs text-[#5B65F2] font-semibold hover:underline py-1">
                 ดูการตอบกลับทั้ง {replies.length} รายการ
               </button>
             ) : (
               <AnimatePresence>
                 {replies.map(r => (
                   <motion.div key={r.id} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
-                    <CommentBubble c={r} isReply />
+                    <CommentBubble c={r} isReply allUsers={allUsers} onCommentUserClick={onCommentUserClick} onReply={onReply} setShowReplies={setShowReplies} setPrefillText={setPrefillText} inlineInputRef={inlineInputRef} />
                   </motion.div>
                 ))}
                 {replies.length > 0 && (
-                  <button onClick={() => setShowReplies(false)} className="text-xs text-gray-400 hover:text-gray-600 py-1">
-                    ซ่อนการตอบกลับ
-                  </button>
+                  <button onClick={() => setShowReplies(false)} className="text-xs text-gray-400 hover:text-gray-600 py-1">ซ่อนการตอบกลับ</button>
                 )}
               </AnimatePresence>
             )}
@@ -266,6 +292,8 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   const [reportReason, setReportReason] = useState('');
   const [reportCustomText, setReportCustomText] = useState('');
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
+  const [editingPost, setEditingPost] = useState(false);
+  const [editPostText, setEditPostText] = useState(postText ?? '');
 
   // sync เมื่อ parent อัปเดต initialBookmarked (เช่น หลัง BOOKMARK_IDS โหลดมา)
   useEffect(() => {
@@ -292,7 +320,23 @@ export const FeedItem: React.FC<FeedItemProps> = ({
         return [...prev, { ...comment, id: normalizedId, user: { ...comment.user, id: String(comment.user.id) } }];
       });
     });
-    return () => unsub();
+
+    const unsubDel = net.on(PacketSC.COMMENT_DELETED, (packet: Packet) => {
+      const incomingPostId = String(packet.readInt());
+      if (incomingPostId !== postId) return;
+      const commentId = String(packet.readInt());
+      setComments(prev => prev.filter(c => c.id !== commentId));
+    });
+
+    const unsubEdit = net.on(PacketSC.COMMENT_UPDATED, (packet: Packet) => {
+      const incomingPostId = String(packet.readInt());
+      if (incomingPostId !== postId) return;
+      const commentId = String(packet.readInt());
+      const text = packet.readString();
+      setComments(prev => prev.map(c => c.id === commentId ? { ...c, text: text || undefined } : c));
+    });
+
+    return () => { unsub(); unsubDel(); unsubEdit(); };
   }, [postId]);
 
   const handleSendComment = async () => {
@@ -473,19 +517,23 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                   className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-20"
                 >
                   {user.id === Global.user.id && (
-                    <button
-                      onClick={() => {
-                        setShowPostMenu(false);
-                        modal.confirm(
-                          'ต้องการลบโพสต์นี้ใช่หรือไม่?',
-                          () => { if (postId) net.deletePost(Number(postId)); },
-                          'ลบโพสต์'
-                        );
-                      }}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <X size={14} /> ลบโพสต์
-                    </button>
+                    <>
+                      <button
+                        onClick={() => { setShowPostMenu(false); setEditPostText(postText ?? ''); setEditingPost(true); }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                      >
+                        <Reply size={14} /> แก้ไขโพสต์
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowPostMenu(false);
+                          modal.confirm('ต้องการลบโพสต์นี้ใช่หรือไม่?', () => { if (postId) net.deletePost(Number(postId)); }, 'ลบโพสต์');
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <X size={14} /> ลบโพสต์
+                      </button>
+                    </>
                   )}
                   <button
                     onClick={() => { setShowPostMenu(false); setShowReportModal(true); }}
@@ -502,11 +550,25 @@ export const FeedItem: React.FC<FeedItemProps> = ({
 
       {/* Post Content */}
       <div>
-        {postText && (
+        {editingPost ? (
+          <div className="px-4 pb-3">
+            <textarea
+              autoFocus
+              value={editPostText}
+              onChange={e => setEditPostText(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5B65F2]/20 resize-none"
+              rows={3}
+            />
+            <div className="flex gap-2 mt-2">
+              <button onClick={() => { if (postId) net.editPost(Number(postId), editPostText); setEditingPost(false); }} className="px-4 py-1.5 bg-[#5B65F2] text-white text-xs font-medium rounded-lg hover:bg-[#4a54e1] transition-colors">บันทึก</button>
+              <button onClick={() => setEditingPost(false)} className="px-4 py-1.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-200 transition-colors">ยกเลิก</button>
+            </div>
+          </div>
+        ) : postText ? (
           <div className="px-4 pb-3 text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap">
             <EmojiText text={postText} />
           </div>
-        )}
+        ) : null}
         {postVideoUrl && (
           <div className="w-full aspect-video">
             <VideoPlayer src={postVideoUrl} autoPlay={false} />

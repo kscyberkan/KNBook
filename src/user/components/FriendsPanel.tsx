@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, UserCheck, UserX, Users, Clock, UserPlus } from 'lucide-react';
-import { modal } from './Modal';
+import { modal } from '../../components/Modal';
 import net, { PacketSC } from '../network/client';
 import Packet from '../network/packet';
 

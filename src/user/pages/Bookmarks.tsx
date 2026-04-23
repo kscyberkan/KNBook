@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Bookmark, ArrowLeft } from 'lucide-react';
 import { FeedItem } from '../components/FeedItem';
-import { type Post, type User } from '../types';
+import { type Post, type User } from '../../types';
 import net, { PacketSC } from '../network/client';
 import Packet from '../network/packet';
 

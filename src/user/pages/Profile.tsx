@@ -2,11 +2,11 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Global } from '../Global';
 import { MapPin, Calendar, Edit2, Camera, Grid3X3, BookOpen } from 'lucide-react';
 import { FeedItem } from '../components/FeedItem';
-import { type Post, type User } from '../types';
+import { type Post, type User } from '../../types';
 import { motion } from 'framer-motion';
 import net, { PacketSC } from '../network/client';
 import Packet from '../network/packet';
-import { modal } from '../components/Modal';
+import { modal } from '../../components/Modal';
 import { FriendButton } from '../components/FriendButton';
 import { updateStoredField } from '../auth/function';
 
@@ -56,6 +56,7 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
     return () => { unsub(); unsubCover() };
   }, [isMe]);
   const [friendStatus, setFriendStatus] = useState<'none' | 'pending_sent' | 'pending_received' | 'accepted'>('none');
+  const [isBlocked, setIsBlocked] = useState(false);
 
   // โหลดโพสต์
   useEffect(() => {
@@ -92,7 +93,12 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
         setFriendStatus(packet.readString() as typeof friendStatus);
       }
     });
-    return () => unsub();
+    const unsubBlock = net.on(PacketSC.BLOCK_UPDATE, (packet: Packet) => {
+      const targetId = String(packet.readInt());
+      const blocked = packet.readBool();
+      if (targetId === displayUser.id) setIsBlocked(blocked);
+    });
+    return () => { unsub(); unsubBlock(); };
   }, [displayUser.id, isMe]);
 
   const loadMore = () => {
@@ -211,7 +217,18 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
                     <Edit2 size={14} /> แก้ไขโปรไฟล์
                   </button>
                 ) : (
-                  <FriendButton targetId={displayUser.id} status={friendStatus} onStatusChange={setFriendStatus} size="sm" />
+                  <div className="flex gap-2">
+                    <FriendButton targetId={displayUser.id} status={friendStatus} onStatusChange={setFriendStatus} size="sm" />
+                    <button
+                      onClick={() => modal.confirm(isBlocked ? `ยกเลิกการบล็อก ${displayUser.name}?` : `บล็อก ${displayUser.name}?`, () => {
+                        isBlocked ? net.unblockUser(Number(displayUser.id)) : net.blockUser(Number(displayUser.id));
+                        setIsBlocked(!isBlocked);
+                      }, isBlocked ? 'ยกเลิกบล็อก' : 'บล็อก')}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${isBlocked ? 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200'}`}
+                    >
+                      {isBlocked ? 'ถูกบล็อก' : 'บล็อก'}
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
@@ -261,7 +278,18 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
                     <Edit2 size={15} /> แก้ไขโปรไฟล์
                   </button>
                 ) : (
-                  <FriendButton targetId={displayUser.id} status={friendStatus} onStatusChange={setFriendStatus} />
+                  <div className="flex gap-2">
+                    <FriendButton targetId={displayUser.id} status={friendStatus} onStatusChange={setFriendStatus} />
+                    <button
+                      onClick={() => modal.confirm(isBlocked ? `ยกเลิกการบล็อก ${displayUser.name}?` : `บล็อก ${displayUser.name}?`, () => {
+                        isBlocked ? net.unblockUser(Number(displayUser.id)) : net.blockUser(Number(displayUser.id));
+                        setIsBlocked(!isBlocked);
+                      }, isBlocked ? 'ยกเลิกบล็อก' : 'บล็อก')}
+                      className={`px-4 py-2.5 text-sm font-medium rounded-xl border transition-all ${isBlocked ? 'bg-red-50 text-red-500 border-red-200' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200'}`}
+                    >
+                      {isBlocked ? 'ถูกบล็อก' : 'บล็อก'}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

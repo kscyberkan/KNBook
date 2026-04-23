@@ -29,6 +29,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [customFeeling, setCustomFeeling] = useState('');
   const [posting, setPosting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const feelings = [
@@ -347,6 +348,12 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
           <span className="text-xs font-medium hidden sm:block">{posting ? 'กำลังโพสต์...' : 'โพสต์'}</span>
         </button>
       </div>
+      {/* Upload progress bar */}
+      {posting && (
+        <div className="h-1 bg-gray-100 rounded-b-2xl overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-[#5B65F2] to-[#7B83F5] transition-all duration-300 animate-pulse" style={{ width: '100%' }} />
+        </div>
+      )}
     </div>
   );
 };

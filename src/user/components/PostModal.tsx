@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { FeedItem } from './FeedItem';
-import { type Post, type User } from '../types';
+import { type Post, type User } from '../../types';
 import net from '../network/client';
 
 interface PostModalProps {

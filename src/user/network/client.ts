@@ -1,6 +1,6 @@
 import Packet from './packet';
 import { PacketCS, PacketSC } from './packetList';
-import { compressImage } from '../utils/imageCompress';
+import { compressImage } from '../../utils/imageCompress';
 
 type Handler = (packet: Packet) => void;
 
@@ -194,6 +194,26 @@ class NetworkClient {
         this.send(p);
     }
 
+    deleteComment(commentId: number): void {
+        const p = new Packet(PacketCS.DELETE_COMMENT);
+        p.writeInt(commentId);
+        this.send(p);
+    }
+
+    editPost(postId: number, text: string): void {
+        const p = new Packet(PacketCS.EDIT_POST);
+        p.writeInt(postId);
+        p.writeString(text);
+        this.send(p);
+    }
+
+    editComment(commentId: number, text: string): void {
+        const p = new Packet(PacketCS.EDIT_COMMENT);
+        p.writeInt(commentId);
+        p.writeString(text);
+        this.send(p);
+    }
+
     // ─── Chat ─────────────────────────────────────────────────────────────────
 
     async sendMessage(receiverId: number, data: {
@@ -338,6 +358,22 @@ class NetworkClient {
         this.send(new Packet(PacketCS.GET_BOOKMARK_IDS));
     }
 
+    blockUser(targetId: number): void {
+        const p = new Packet(PacketCS.BLOCK_USER);
+        p.writeInt(targetId);
+        this.send(p);
+    }
+
+    unblockUser(targetId: number): void {
+        const p = new Packet(PacketCS.UNBLOCK_USER);
+        p.writeInt(targetId);
+        this.send(p);
+    }
+
+    getBlockedUsers(): void {
+        this.send(new Packet(PacketCS.GET_BLOCKED_USERS));
+    }
+
     reactMessage(messageId: number, emoji: string): void {
         const p = new Packet(PacketCS.REACT_MESSAGE);
         p.writeInt(messageId);
@@ -385,9 +421,9 @@ class NetworkClient {
 async function uploadFile(
     file: File,
     source: 'post' | 'chat' | 'profile' | 'cover' = 'post',
-    userId?: string
+    userId?: string,
+    onProgress?: (pct: number) => void
 ): Promise<string> {
-    // compress รูปก่อน upload
     const toUpload = file.type.startsWith('image/')
         ? await compressImage(file, {
             maxWidth: source === 'profile' || source === 'cover' ? 800 : 1920,
@@ -397,14 +433,31 @@ async function uploadFile(
         })
         : file;
 
-    const form = new FormData();
-    form.append('file', toUpload);
-    form.append('source', source);
-    if (userId) form.append('userId', userId);
-    const res = await fetch('/api/upload', { method: 'POST', body: form });
-    const json = await res.json() as { url?: string; error?: string };
-    if (!json.url) throw new Error(json.error ?? 'Upload failed');
-    return json.url;
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const form = new FormData();
+        form.append('file', toUpload);
+        form.append('source', source);
+        if (userId) form.append('userId', userId);
+
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                const json = JSON.parse(xhr.responseText) as { url?: string; error?: string };
+                if (json.url) resolve(json.url);
+                else reject(new Error(json.error ?? 'Upload failed'));
+            } else if (xhr.status === 413) {
+                reject(new Error('ไฟล์ใหญ่เกินไป'));
+            } else {
+                reject(new Error(`Upload failed: ${xhr.status}`));
+            }
+        };
+        xhr.onerror = () => reject(new Error('เชื่อมต่อไม่ได้ กรุณาลองใหม่'));
+        xhr.open('POST', '/api/upload');
+        xhr.send(form);
+    });
 }
 
 // singleton

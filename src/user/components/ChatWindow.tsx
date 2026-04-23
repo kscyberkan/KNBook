@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Send, Paperclip, Phone, Video, Image as ImageIcon, FileText, Film, ZoomIn } from 'lucide-react';
-import { type User } from '../types';
+import { type User } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VideoPlayer } from './VideoPlayer';
 import net, { PacketSC } from '../network/client';

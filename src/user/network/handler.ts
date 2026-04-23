@@ -1,4 +1,4 @@
-import Packet from '@network/packet';
+import Packet from './packet';
 import { PacketCS, PacketSC } from './packetList';
 import { registerSession, removeSession, getUserId, broadcast, sendToUser, sessions, type WS } from './session';
 import { getUserByUsername, getUserByToken, createUser, updateUser, getUserById } from '@/prisma/user';
@@ -10,6 +10,7 @@ import { createMessage, getConversation, markMessagesRead } from '@/prisma/messa
 import { createNotification, upsertNotification, getNotifications, markNotificationRead, markAllNotificationsRead, markNotificationHandled } from '@/prisma/notification';
 import { createReport } from '@/prisma/report';
 import { addBookmark, removeBookmark, getBookmarks } from '@/prisma/bookmark';
+import { blockUser, unblockUser, getBlockedUsers } from '@/prisma/block';
 import { checkRateLimit } from './rateLimit';
 import { sanitizeText, sanitizeShort } from '@/utils/sanitize';
 import { getFriendStatus, sendFriendRequest, acceptFriendRequest, removeFriend, getFriends, getPendingRequests, getSentRequests } from '@/prisma/friendship';
@@ -52,12 +53,18 @@ const handlers = new Map<number, Handler>([
     [PacketCS.GET_SENT_REQUESTS, recvGetSentRequests],
     [PacketCS.HANDLE_FRIEND_NOTIF, recvHandleFriendNotif],
     [PacketCS.REPORT_POST, recvReportPost],
+    [PacketCS.DELETE_COMMENT, recvDeleteComment],
+    [PacketCS.EDIT_POST, recvEditPost],
+    [PacketCS.EDIT_COMMENT, recvEditComment],
     [PacketCS.BOOKMARK_POST, recvBookmarkPost],
     [PacketCS.UNBOOKMARK_POST, recvUnbookmarkPost],
     [PacketCS.GET_BOOKMARKS, recvGetBookmarks],
     [PacketCS.REACT_MESSAGE, recvReactMessage],
     [PacketCS.UNREACT_MESSAGE, recvUnreactMessage],
     [PacketCS.GET_BOOKMARK_IDS, recvGetBookmarkIds],
+    [PacketCS.BLOCK_USER, recvBlockUser],
+    [PacketCS.UNBLOCK_USER, recvUnblockUser],
+    [PacketCS.GET_BLOCKED_USERS, recvGetBlockedUsers],
 ]);
 
 // ─── Packet Queue ────────────────────────────────────────────────────────────
@@ -154,6 +161,15 @@ async function recvLogin(socket: WS, packet: Packet): Promise<void> {
     const username = packet.readString();
     const password = packet.readString();
 
+    // rate limit: 10 ครั้ง/นาที ต่อ socket
+    const socketId = (socket as any).remoteAddress ?? 'unknown';
+    if (!checkRateLimit(socketId as any, 'login', 10, 60_000)) {
+        const p = new Packet(PacketSC.REJECT_LOGIN);
+        p.writeString('ลองใหม่อีกครั้งในภายหลัง');
+        socket.send(p.toBuffer());
+        return;
+    }
+
     const user = await getUserByUsername(username);
     if (!user || !(await bcrypt.compare(password, user.password))) {
         const p = new Packet(PacketSC.REJECT_LOGIN);
@@ -202,6 +218,14 @@ async function recvRegister(socket: WS, packet: Packet): Promise<void> {
     const nickname = packet.readString();
     const phone = packet.readString();
     const province = packet.readString();
+
+    const socketId = (socket as any).remoteAddress ?? 'unknown';
+    if (!checkRateLimit(socketId as any, 'register', 5, 60_000)) {
+        const p = new Packet(PacketSC.REJECT_REGISTER);
+        p.writeString('ลองใหม่อีกครั้งในภายหลัง');
+        socket.send(p.toBuffer());
+        return;
+    }
 
     const existing = await getUserByUsername(username);
     if (existing) {
@@ -275,8 +299,10 @@ async function recvResume(socket: WS, packet: Packet): Promise<void> {
 // ─── Post ────────────────────────────────────────────────────────────────────
 
 async function recvGetFeed(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
     const offset = packet.readInt();
-    const posts = await getFeedPosts(10, offset);
+    const posts = await getFeedPosts(userId, 10, offset);
 
     const normalized = posts.map(normalizePost);
 
@@ -893,5 +919,77 @@ async function recvGetBookmarkIds(socket: WS, _packet: Packet): Promise<void> {
     const rows = await prisma.bookmark.findMany({ where: { userId }, select: { postId: true } });
     const p = new Packet(PacketSC.BOOKMARK_IDS);
     p.writeString(JSON.stringify(rows.map(r => String(r.postId))));
+    socket.send(p.toBuffer());
+}
+
+async function recvDeleteComment(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const commentId = packet.readInt();
+    const comment = await prisma.comment.findUnique({ where: { id: commentId }, select: { userId: true, postId: true } });
+    if (!comment || comment.userId !== userId) { sendError(socket, 'Unauthorized'); return; }
+    await prisma.comment.delete({ where: { id: commentId } });
+    const p = new Packet(PacketSC.COMMENT_DELETED);
+    p.writeInt(comment.postId);
+    p.writeInt(commentId);
+    broadcast(p.toBuffer());
+}
+
+async function recvEditPost(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const postId = packet.readInt();
+    const text = sanitizeText(packet.readString()) || undefined;
+    const post = await prisma.post.findUnique({ where: { id: postId }, select: { userId: true } });
+    if (!post || post.userId !== userId) { sendError(socket, 'Unauthorized'); return; }
+    const updated = await prisma.post.update({ where: { id: postId }, data: { text } });
+    const p = new Packet(PacketSC.POST_UPDATED);
+    p.writeInt(postId);
+    p.writeString(text ?? '');
+    broadcast(p.toBuffer());
+}
+
+async function recvEditComment(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const commentId = packet.readInt();
+    const text = sanitizeText(packet.readString()) || undefined;
+    const comment = await prisma.comment.findUnique({ where: { id: commentId }, select: { userId: true, postId: true } });
+    if (!comment || comment.userId !== userId) { sendError(socket, 'Unauthorized'); return; }
+    await prisma.comment.update({ where: { id: commentId }, data: { text } });
+    const p = new Packet(PacketSC.COMMENT_UPDATED);
+    p.writeInt(comment.postId);
+    p.writeInt(commentId);
+    p.writeString(text ?? '');
+    broadcast(p.toBuffer());
+}
+
+async function recvBlockUser(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const targetId = packet.readInt();
+    if (targetId === userId) return;
+    await blockUser(userId, targetId);
+    const p = new Packet(PacketSC.BLOCK_UPDATE);
+    p.writeInt(targetId); p.writeBool(true);
+    socket.send(p.toBuffer());
+}
+
+async function recvUnblockUser(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const targetId = packet.readInt();
+    await unblockUser(userId, targetId);
+    const p = new Packet(PacketSC.BLOCK_UPDATE);
+    p.writeInt(targetId); p.writeBool(false);
+    socket.send(p.toBuffer());
+}
+
+async function recvGetBlockedUsers(socket: WS, _packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const rows = await getBlockedUsers(userId);
+    const p = new Packet(PacketSC.BLOCKED_LIST);
+    p.writeString(JSON.stringify(rows.map(r => ({ id: String(r.blocked.id), name: r.blocked.name, profileImage: r.blocked.profileImage }))));
     socket.send(p.toBuffer());
 }

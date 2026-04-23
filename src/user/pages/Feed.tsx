@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useCallback } from "react";
 import { CreatePost } from "../components/CreatePost";
 import { FeedItem } from "../components/FeedItem";
-import { type Post, type User } from "../types";
+import { type Post, type User } from "../../types";
 import net, { PacketSC } from "../network/client";
 import Packet from "../network/packet";
 
@@ -70,6 +70,12 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
             offsetRef.current = Math.max(0, offsetRef.current - 1);
         });
 
+        const unsubEdit = net.on(PacketSC.POST_UPDATED, (packet: Packet) => {
+            const postId = String(packet.readInt());
+            const text = packet.readString();
+            setPosts(prev => prev.map(p => p.id === postId ? { ...p, text: text || undefined } : p));
+        });
+
         const unsubBookmark = net.on(PacketSC.BOOKMARK_UPDATE, (packet: Packet) => {
             const postId = String(packet.readInt());
             const saved = packet.readBool();
@@ -94,7 +100,7 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
 
         net.getFeed(0);
         net.getBookmarkIds();
-        return () => { unsubList(); unsubNew(); unsubReaction(); unsubComment(); unsubDel(); unsubBookmark(); unsubBookmarkIds(); unsubResume(); };
+        return () => { unsubList(); unsubNew(); unsubReaction(); unsubComment(); unsubDel(); unsubEdit(); unsubBookmark(); unsubBookmarkIds(); unsubResume(); };
     }, []);
 
     const loadMore = useCallback(() => {

@@ -6,8 +6,8 @@ import Register from './register/register';
 import { lineAuth } from './line-auth';
 import net from '../network/client';
 import { PacketSC } from '../network/packetList';
-import { type LoginData } from '../types/login_data';
-import { modal } from '../components/Modal';
+import { type LoginData } from '../../types/login_data';
+import { modal } from '../../components/Modal';
 
 type AuthProps = { children?: React.ReactNode };
 

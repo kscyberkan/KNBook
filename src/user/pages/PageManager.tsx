@@ -6,7 +6,7 @@ import Bookmarks from './Bookmarks';
 import { MessageCircle, X, LogOut, User as UserIcon, ChevronDown, Home, Bell, Settings, Users, Bookmark } from "lucide-react";
 import SearchBox from "../components/SearchBox";
 import { Global } from "../Global";
-import { type User } from "../types";
+import { type User } from "../../types";
 import { ChatWindow } from "../components/ChatWindow";
 import { motion, AnimatePresence } from "framer-motion";
 import { lineAuth } from "../auth/line-auth";
@@ -14,7 +14,7 @@ import { googleAuth } from "../auth/google-auth";
 import net, { PacketSC } from "../network/client";
 import Packet from "../network/packet";
 import auth from "../auth/function";
-import { modal } from "../components/Modal";
+import { modal } from "../../components/Modal";
 import { FriendsPanel } from "../components/FriendsPanel";
 import { PostModal } from "../components/PostModal";
 
@@ -98,6 +98,8 @@ export default function PageManager() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showFriendsPanel, setShowFriendsPanel] = useState(false);
   const [openPostId, setOpenPostId] = useState<string | null>(null);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadPerUser, setUnreadPerUser] = useState<Record<string, number>>({});
   const mainScrollRef = useRef<HTMLElement>(null);
 
   useLayoutEffect(() => {
@@ -193,12 +195,36 @@ export default function PageManager() {
       });
     });
 
-    return () => { unsubNotifs(); unsubNew(); unsubFriends(); unsubOnline(); unsubAccepted(); };
+    // นับข้อความที่ยังไม่ได้อ่าน
+    const unsubMsg = net.on(PacketSC.NEW_MESSAGE, (packet: Packet) => {
+      const msg = JSON.parse(packet.readString()) as { senderId: string };
+      // ไม่นับถ้าตัวเองเป็นคนส่ง
+      if (msg.senderId === Global.user.id) return;
+      setActiveChat(current => {
+        if (!current || current.id !== msg.senderId) {
+          setUnreadMessages(prev => prev + 1);
+          setUnreadPerUser(prev => ({ ...prev, [msg.senderId]: (prev[msg.senderId] ?? 0) + 1 }));
+        }
+        return current;
+      });
+    });
+
+    return () => { unsubNotifs(); unsubNew(); unsubFriends(); unsubOnline(); unsubAccepted(); unsubMsg(); };
   }, []);
 
   const markAllRead = () => {
     net.markAllNotificationsRead();
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const clearUnreadForUser = (userId: string) => {
+    setUnreadPerUser(prev => {
+      const next = { ...prev };
+      delete next[userId];
+      const total = Object.values(next).reduce((a, b) => a + b, 0);
+      setUnreadMessages(total);
+      return next;
+    });
   };
 
   const markOneRead = (id: string) => {
@@ -349,10 +375,24 @@ export default function PageManager() {
                                 setShowNotifications(false);
                                 // navigate ตาม type
                                 if (notif.type === 'reaction' || notif.type === 'comment' || notif.type === 'share' || notif.type === 'post') {
-                                  console.log('[Notif] click type:', notif.type, 'refId:', notif.refId);
                                   if (notif.refId) setOpenPostId(String(notif.refId));
                                 } else if (notif.type === 'message') {
-                                  // TODO: open chat
+                                  if (notif.fromId) {
+                                    const friend = friends.find(f => f.id === String(notif.fromId));
+                                    if (friend) {
+                                      setActiveChat({ id: friend.id, name: friend.name, profileImage: friend.profileImage });
+                                      clearUnreadForUser(friend.id);
+                                    } else {
+                                      // ไม่อยู่ใน friends list — fetch user data
+                                      net.getUserById(notif.fromId);
+                                      const unsub = net.on(PacketSC.USER_DATA, (packet: Packet) => {
+                                        const data = JSON.parse(packet.readString()) as User;
+                                        unsub();
+                                        setActiveChat({ id: data.id, name: data.name, profileImage: data.profileImage });
+                                        clearUnreadForUser(data.id);
+                                      });
+                                    }
+                                  }
                                 } else if (notif.type === 'friend_request') {
                                   setShowFriendsPanel(true);
                                 }
@@ -428,10 +468,15 @@ export default function PageManager() {
                 />
               </div>
               <button
-                onClick={() => setShowFriends(!showFriends)}
-                className={`p-2 hover:bg-white/10 rounded-full transition-colors ${showFriends ? 'bg-white/20' : ''}`}
+                onClick={() => { setShowFriends(!showFriends); }}
+                className={`p-2 hover:bg-white/10 rounded-full transition-colors relative ${showFriends ? 'bg-white/20' : ''}`}
               >
                 <MessageCircle size={20} />
+                {unreadMessages > 0 && (
+                  <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {unreadMessages > 9 ? '9+' : unreadMessages}
+                  </span>
+                )}
               </button>
             </div>
 
@@ -599,18 +644,28 @@ export default function PageManager() {
                       onClick={() => {
                         setActiveChat({ id: friend.id, name: friend.name, profileImage: friend.profileImage });
                         setShowFriends(false);
+                        clearUnreadForUser(friend.id);
                       }}
                       className="flex items-center p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0"
                     >
                       <div className="relative">
                         <img src={friend.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.name}`} alt={friend.name} className="w-10 h-10 rounded-full object-cover" />
                         <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${friend.status === 'online' ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                        {(unreadPerUser[friend.id] ?? 0) > 0 && (
+                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white">
+                            {(unreadPerUser[friend.id] ?? 0) > 9 ? '9+' : unreadPerUser[friend.id]}
+                          </span>
+                        )}
                       </div>
                       <div className="ml-3 flex-1">
-                        <div className="text-sm font-bold text-gray-800">{friend.name}</div>
-                        <div className="text-[10px] text-gray-500">{friend.status === 'online' ? 'ออนไลน์' : 'ออฟไลน์'}</div>
+                        <div className={`text-sm font-bold ${(unreadPerUser[friend.id] ?? 0) > 0 ? 'text-gray-900' : 'text-gray-800'}`}>{friend.name}</div>
+                        <div className="text-[10px] text-gray-500">
+                          {(unreadPerUser[friend.id] ?? 0) > 0
+                            ? <span className="text-red-500 font-medium">{unreadPerUser[friend.id]} ข้อความใหม่</span>
+                            : friend.status === 'online' ? 'ออนไลน์' : 'ออฟไลน์'}
+                        </div>
                       </div>
-                      <MessageCircle size={16} className="text-gray-300" />
+                      <MessageCircle size={16} className={(unreadPerUser[friend.id] ?? 0) > 0 ? 'text-red-400' : 'text-gray-300'} />
                     </div>
                   ))}
                 </div>
@@ -620,14 +675,19 @@ export default function PageManager() {
         </div>
 
         <button
-          onClick={() => activeChat ? setActiveChat(null) : setShowFriends(!showFriends)}
-          className={`w-14 h-14 md:w-16 md:h-16 rounded-full shadow-xl flex items-center justify-center transition-all transform hover:scale-110 active:scale-95 flex-shrink-0 ${
+          onClick={() => { activeChat ? setActiveChat(null) : setShowFriends(!showFriends); }}
+          className={`w-14 h-14 md:w-16 md:h-16 rounded-full shadow-xl flex items-center justify-center transition-all transform hover:scale-110 active:scale-95 flex-shrink-0 relative ${
             showFriends || activeChat
               ? 'bg-gray-700 rotate-12'
               : 'bg-gradient-to-br from-[#5B65F2] to-[#7B83F5] shadow-[#5B65F2]/30'
           }`}
         >
           {activeChat ? <X size={28} className="text-white" /> : <MessageCircle size={28} className="text-white" />}
+          {unreadMessages > 0 && !activeChat && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+              {unreadMessages > 9 ? '9+' : unreadMessages}
+            </span>
+          )}
         </button>
       </div>
       {/* Post Modal */}

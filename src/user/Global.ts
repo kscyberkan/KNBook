@@ -1,4 +1,4 @@
-import { type User } from "./types";
+import { type User } from "../types";
 
 export const Global: { user: User } = {
     user: {

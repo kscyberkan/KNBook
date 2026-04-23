@@ -3,7 +3,7 @@ import { Global } from '../Global';
 import { Camera, Save, ArrowLeft, User as UserIcon, MapPin, Phone, MessageSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { TH_PROVINCES } from '../constants/th-provinces';
-import { modal } from '../components/Modal';
+import { modal } from '../../components/Modal';
 import net from '../network/client';
 
 interface EditProfileProps {

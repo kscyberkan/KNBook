@@ -11,6 +11,7 @@ export enum PacketCS {
     DELETE_POST     = 11,
     GET_FEED        = 12,
     GET_USER_POSTS  = 13,
+    EDIT_POST       = 14,
 
     // Reaction
     REACT_POST      = 20,
@@ -19,6 +20,7 @@ export enum PacketCS {
     // Comment
     CREATE_COMMENT  = 30,
     DELETE_COMMENT  = 31,
+    EDIT_COMMENT    = 32,
 
     // Chat
     SEND_MESSAGE    = 40,
@@ -54,6 +56,9 @@ export enum PacketCS {
     REACT_MESSAGE           = 94,
     UNREACT_MESSAGE         = 95,
     GET_BOOKMARK_IDS        = 96,
+    BLOCK_USER              = 97,
+    UNBLOCK_USER            = 98,
+    GET_BLOCKED_USERS       = 99,
 }
 
 // Server → Client
@@ -67,15 +72,18 @@ export enum PacketSC {
 
     // Post
     POST_LIST       = 10,
-    USER_POST_LIST  = 14,   // แยกจาก POST_LIST เพื่อไม่ชนกัน
-    NEW_POST        = 11,       // broadcast: มีโพสต์ใหม่
+    USER_POST_LIST  = 14,
+    NEW_POST        = 11,
     POST_DELETED    = 12,
+    POST_UPDATED    = 13,
 
     // Reaction
     REACTION_UPDATE = 20,       // broadcast: reaction เปลี่ยน
 
     // Comment
-    NEW_COMMENT     = 30,       // broadcast: comment ใหม่
+    NEW_COMMENT     = 30,
+    COMMENT_DELETED = 31,
+    COMMENT_UPDATED = 32,
 
     // Chat
     MESSAGE_LIST    = 40,
@@ -123,4 +131,8 @@ export enum PacketSC {
 
     // Bookmark IDs
     BOOKMARK_IDS    = 95,
+
+    // Block
+    BLOCK_UPDATE    = 96,
+    BLOCKED_LIST    = 97,
 }

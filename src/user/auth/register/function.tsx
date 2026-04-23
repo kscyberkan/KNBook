@@ -2,8 +2,8 @@ import auth from "../function";
 import net from "../../network/client";
 import { PacketSC } from "../../network/packetList";
 import Packet from "../../network/packet";
-import { type RegisterData } from "../../types/register_data";
-import { modal } from "../../components/Modal";
+import { type RegisterData } from "../../../types/register_data";
+import { modal } from "../../../components/Modal";
 
 function SendRegister(registerData: RegisterData) {
     const fullName = `${registerData.name} ${registerData.lastname}`.trim();
