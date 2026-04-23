@@ -43,6 +43,7 @@ model Post {
   videoUrl   String?
   feeling    String?
   stickerUrl String?
+  isActive   Boolean    @default(true)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
@@ -144,8 +145,9 @@ model Bookmark {
 
 model AdminLog {
   id        Int      @id @default(autoincrement())
-  action    String   // ban_user, unban_user, delete_post, dismiss_report
+  action    String
   targetId  Int
+  postId    Int?
   detail    String?
   createdAt DateTime @default(now())
 }

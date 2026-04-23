@@ -62,6 +62,7 @@ async function resolveSharedChain(post: any): Promise<any> {
 
 export async function getFeedPosts(limit = 10, offset = 0): Promise<PostWithRelations[]> {
     const posts = await prisma.post.findMany({
+        where: { isActive: true },
         include: postInclude,
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -72,7 +73,7 @@ export async function getFeedPosts(limit = 10, offset = 0): Promise<PostWithRela
 
 export async function getPostsByUser(userId: number, limit = 10, offset = 0): Promise<PostWithRelations[]> {
     const posts = await prisma.post.findMany({
-        where: { userId },
+        where: { userId, isActive: true },
         include: postInclude,
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -107,5 +108,6 @@ export async function createPost(data: {
 }
 
 export async function deletePost(id: number, userId: number): Promise<void> {
-    await prisma.post.deleteMany({ where: { id, userId } });
+    // user ลบโพสต์ตัวเอง — soft delete
+    await prisma.post.updateMany({ where: { id, userId }, data: { isActive: false } });
 }

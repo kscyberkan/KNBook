@@ -17,8 +17,9 @@ export default function UsersPage({ api }: Props) {
   const [pages, setPages] = useState(1);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const searchRef = React.useRef(search);
 
-  const fetchUsers = async (p = page, s = search) => {
+  const fetchUsers = async (p: number, s: string) => {
     setLoading(true);
     const res = await api(`/users?page=${p}&search=${encodeURIComponent(s)}`);
     const data = await res.json();
@@ -26,8 +27,23 @@ export default function UsersPage({ api }: Props) {
     setLoading(false);
   };
 
-  useEffect(() => { fetchUsers(1, search); setPage(1); }, [search]);
-  useEffect(() => { fetchUsers(page, search); }, [page]);
+  // โหลดครั้งแรก
+  useEffect(() => { fetchUsers(1, ''); }, []);
+
+  // debounce search
+  useEffect(() => {
+    searchRef.current = search;
+    const timer = setTimeout(() => {
+      setPage(1);
+      fetchUsers(1, search);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // เปลี่ยนหน้า — ใช้ search ปัจจุบันจาก ref
+  useEffect(() => {
+    fetchUsers(page, searchRef.current);
+  }, [page]);
 
   const toggleBan = async (user: User) => {
     const action = user.banned ? 'ปลดแบน' : 'แบน';

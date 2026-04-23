@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 
-interface Log { id: number; action: string; targetId: number; detail: string | null; createdAt: string; }
+interface Log { id: number; action: string; targetId: number; postId: number | null; detail: string | null; createdAt: string; }
 
 interface Props { api: (path: string, opts?: RequestInit) => Promise<Response>; }
 
@@ -9,6 +9,7 @@ const actionLabel: Record<string, { label: string; color: string }> = {
   ban_user:       { label: 'แบน User',      color: 'bg-red-100 text-red-700' },
   unban_user:     { label: 'ปลดแบน User',   color: 'bg-green-100 text-green-700' },
   delete_post:    { label: 'ลบโพสต์',       color: 'bg-orange-100 text-orange-700' },
+  restore_post:   { label: 'กู้คืนโพสต์',   color: 'bg-blue-100 text-blue-700' },
   dismiss_report: { label: 'ปิดรายงาน',     color: 'bg-gray-100 text-gray-600' },
 };
 
@@ -70,11 +71,16 @@ export default function AuditLogPage({ api }: Props) {
             {logs.map(log => {
               const meta = actionLabel[log.action] ?? { label: log.action, color: 'bg-gray-100 text-gray-600' };
               return (
-                <div key={log.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors">
-                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0 ${meta.color}`}>{meta.label}</span>
-                  <span className="text-xs text-gray-500">ID: {log.targetId}</span>
-                  {log.detail && <span className="text-xs text-gray-400 truncate flex-1">{log.detail}</span>}
-                  <span className="text-[11px] text-gray-400 flex-shrink-0 ml-auto">
+                <div key={log.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors">
+                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0 mt-0.5 ${meta.color}`}>{meta.label}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap text-xs text-gray-500">
+                      <span>ID: {log.targetId}</span>
+                      {log.postId && <span className="text-[#5B65F2]">โพสต์ #{log.postId}</span>}
+                    </div>
+                    {log.detail && <p className="text-xs text-gray-400 mt-0.5 truncate">{log.detail}</p>}
+                  </div>
+                  <span className="text-[11px] text-gray-400 flex-shrink-0">
                     {new Date(log.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>

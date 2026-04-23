@@ -158,10 +158,40 @@ export async function getPostDetail(_req: Request, postId: number) {
     return Response.json(post);
 }
 
+export async function restorePost(req: Request) {
+    const { postId }: { postId: number } = await req.json();
+    const post = await prisma.post.update({
+        where: { id: postId },
+        data: { isActive: true },
+        include: { user: { select: { name: true } } },
+    });
+    await prisma.adminLog.create({
+        data: {
+            action: 'restore_post',
+            targetId: postId,
+            postId,
+            detail: `กู้คืนโพสต์ของ ${post.user.name}: ${post.text?.slice(0, 80) ?? '(ไม่มีข้อความ)'}`,
+        },
+    });
+    return Response.json({ ok: true });
+}
+
 export async function adminDeletePost(req: Request) {
     const { postId }: { postId: number } = await req.json();
-    await prisma.post.delete({ where: { id: postId } });
-    await prisma.adminLog.create({ data: { action: 'delete_post', targetId: postId } });
+    // soft delete — set isActive=false แทนลบจริง
+    const post = await prisma.post.update({
+        where: { id: postId },
+        data: { isActive: false },
+        include: { user: { select: { name: true } } },
+    });
+    await prisma.adminLog.create({
+        data: {
+            action: 'delete_post',
+            targetId: postId,
+            postId,
+            detail: `โพสต์ของ ${post.user.name}: ${post.text?.slice(0, 80) ?? '(ไม่มีข้อความ)'}`,
+        },
+    });
     return Response.json({ ok: true });
 }
 
@@ -195,8 +225,19 @@ export async function getReports(req: Request) {
 
 export async function dismissReport(req: Request) {
     const { reportId }: { reportId: number } = await req.json();
+    const report = await prisma.report.findUnique({
+        where: { id: reportId },
+        include: { user: { select: { name: true } }, post: { select: { id: true, text: true } } },
+    });
     await prisma.report.delete({ where: { id: reportId } });
-    await prisma.adminLog.create({ data: { action: 'dismiss_report', targetId: reportId } });
+    await prisma.adminLog.create({
+        data: {
+            action: 'dismiss_report',
+            targetId: reportId,
+            postId: report?.post.id,
+            detail: `รายงานจาก ${report?.user.name ?? '?'}: ${report?.reason ?? ''} | โพสต์ #${report?.post.id}: ${report?.post.text?.slice(0, 60) ?? '(ไม่มีข้อความ)'}`,
+        },
+    });
     return Response.json({ ok: true });
 }
 
@@ -215,6 +256,7 @@ export async function handleAdminApi(req: Request): Promise<Response> {
     if (path === '/posts' && method === 'GET') return getPosts(req);
     if (path.match(/^\/posts\/\d+$/) && method === 'GET') return getPostDetail(req, Number(path.split('/')[2]));
     if (path === '/posts/delete' && method === 'POST') return adminDeletePost(req);
+    if (path === '/posts/restore' && method === 'POST') return restorePost(req);
     if (path === '/reports' && method === 'GET') return getReports(req);
     if (path === '/reports/dismiss' && method === 'POST') return dismissReport(req);
     if (path === '/logs' && method === 'GET') return getAuditLogs(req);

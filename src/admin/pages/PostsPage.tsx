@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Trash2, ChevronLeft, ChevronRight, MessageCircle, Heart, Flag, Eye } from 'lucide-react';
+import { Trash2, ChevronLeft, ChevronRight, MessageCircle, Heart, Flag, Eye, RotateCcw } from 'lucide-react';
 import { modal } from '../../components/Modal';
 import PostDetailModal from '../components/PostDetailModal';
 
 interface Post {
   id: number; text: string | null; imageUrl: string | null; videoUrl: string | null;
-  createdAt: string;
+  isActive: boolean; createdAt: string;
   user: { id: number; name: string; profileImage: string | null };
   _count: { reactions: number; comments: number; reports: number };
 }
@@ -67,6 +67,9 @@ export default function PostsPage({ api }: Props) {
                     <span className="text-[11px] text-gray-400">
                       {new Date(post.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </span>
+                    {!post.isActive && (
+                      <span className="text-[11px] text-gray-500 font-medium bg-gray-100 px-1.5 py-0.5 rounded-full">ถูกลบแล้ว</span>
+                    )}
                     {post._count.reports > 0 && (
                       <span className="flex items-center gap-0.5 text-[11px] text-red-500 font-medium bg-red-50 px-1.5 py-0.5 rounded-full">
                         <Flag size={10} /> {post._count.reports} รายงาน
@@ -87,12 +90,25 @@ export default function PostsPage({ api }: Props) {
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={(e) => deletePost(post, e)}
-                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="flex gap-1 flex-shrink-0">
+                  {!post.isActive ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); modal.confirm(`กู้คืนโพสต์ของ "${post.user.name}" ใช่หรือไม่?`, async () => { await api('/posts/restore', { method: 'POST', body: JSON.stringify({ postId: post.id }) }); fetchPosts(page); }, 'กู้คืน'); }}
+                      className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="กู้คืนโพสต์"
+                    >
+                      <RotateCcw size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => deletePost(post, e)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="ลบโพสต์"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
