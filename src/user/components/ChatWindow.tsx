@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Paperclip, Phone, Video, Image as ImageIcon, FileText, Film, ZoomIn } from 'lucide-react';
+import { X, Send, Paperclip, Image as ImageIcon, FileText, Film, ZoomIn } from 'lucide-react';
 import { type User } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VideoPlayer } from './VideoPlayer';
@@ -185,7 +185,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
             {messages.map((msg, idx) => {
               const isMe = msg.senderId === Global.user.id;
               const msgDate = new Date(msg.timestamp);
-              const prevDate = idx > 0 ? new Date(messages[idx - 1].timestamp) : null;
+              const prevDate = idx > 0 ? new Date(messages[idx - 1]?.timestamp ?? '') : null;
               const showDateSep = !prevDate ||
                 msgDate.getFullYear() !== prevDate.getFullYear() ||
                 msgDate.getMonth() !== prevDate.getMonth() ||
