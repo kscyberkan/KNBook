@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, UserCheck, UserX, Users, Clock, UserPlus } from 'lucide-react';
+import { modal } from './Modal';
 import net, { PacketSC } from '../network/client';
 import Packet from '../network/packet';
 
@@ -45,18 +46,24 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ open, onClose, onUse
   };
 
   const declineRequest = (userId: string) => {
-    net.removeFriend(Number(userId));
-    setPending(prev => prev.filter(u => u.id !== userId));
+    modal.confirm('ปฏิเสธคำขอเป็นเพื่อน?', () => {
+      net.removeFriend(Number(userId));
+      setPending(prev => prev.filter(u => u.id !== userId));
+    }, 'ปฏิเสธ');
   };
 
   const cancelRequest = (userId: string) => {
-    net.removeFriend(Number(userId));
-    setSent(prev => prev.filter(u => u.id !== userId));
+    modal.confirm('ยกเลิกคำขอเป็นเพื่อน?', () => {
+      net.removeFriend(Number(userId));
+      setSent(prev => prev.filter(u => u.id !== userId));
+    }, 'ยกเลิกคำขอ');
   };
 
   const removeFriend = (userId: string) => {
-    net.removeFriend(Number(userId));
-    setFriends(prev => prev.filter(u => u.id !== userId));
+    modal.confirm('ลบเพื่อนคนนี้?', () => {
+      net.removeFriend(Number(userId));
+      setFriends(prev => prev.filter(u => u.id !== userId));
+    }, 'ลบเพื่อน');
   };
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [

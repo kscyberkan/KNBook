@@ -19,8 +19,8 @@ export async function createMessage(data: {
     }) as Promise<MessageWithSender>;
 }
 
-export async function getConversation(userAId: number, userBId: number, limit = 50): Promise<MessageWithSender[]> {
-    return prisma.message.findMany({
+export async function getConversation(userAId: number, userBId: number, limit = 10, offset = 0): Promise<MessageWithSender[]> {
+    const messages = await prisma.message.findMany({
         where: {
             OR: [
                 { senderId: userAId, receiverId: userBId },
@@ -28,9 +28,11 @@ export async function getConversation(userAId: number, userBId: number, limit = 
             ],
         },
         include: { sender: { select: { id: true, name: true, profileImage: true } } },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'desc' },
         take: limit,
+        skip: offset,
     }) as Promise<MessageWithSender[]>;
+    return (await messages).reverse();
 }
 
 export async function markMessagesRead(senderId: number, receiverId: number): Promise<void> {

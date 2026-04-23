@@ -59,10 +59,10 @@ export const FriendButton: React.FC<FriendButtonProps> = ({ targetId, status, on
           ยืนยัน
         </button>
         <button
-          onClick={() => {
+          onClick={() => modal.confirm('ปฏิเสธคำขอเป็นเพื่อน?', () => {
             net.removeFriend(Number(targetId));
             onStatusChange('none');
-          }}
+          }, 'ปฏิเสธ')}
           className={`flex items-center gap-1.5 ${px} bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium rounded-xl border border-gray-200 transition-all`}
         >
           <UserX size={14} />

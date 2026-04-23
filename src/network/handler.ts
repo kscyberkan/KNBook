@@ -1,7 +1,7 @@
 import Packet from '@network/packet';
 import { PacketCS, PacketSC } from './packetList';
 import { registerSession, removeSession, getUserId, broadcast, sendToUser, type WS } from './session';
-import { getUserByUsername, getUserByToken, createUser, updateUser } from '@/prisma/user';
+import { getUserByUsername, getUserByToken, createUser, updateUser, getUserById } from '@/prisma/user';
 import { getFeedPosts, getPostsByUser, createPost, deletePost } from '@/prisma/post';
 import { upsertReaction, deleteReaction } from '@/prisma/reaction';
 import { createComment } from '@/prisma/comment';
@@ -40,8 +40,10 @@ const handlers = new Map<number, Handler>([
     [PacketCS.ACCEPT_FRIEND_REQUEST, recvAcceptFriendRequest],
     [PacketCS.REMOVE_FRIEND, recvRemoveFriend],
     [PacketCS.GET_FRIENDS, recvGetFriends],
-    [PacketCS.GET_FRIENDS_PANEL, recvGetFriendsPanel],
-    [PacketCS.GET_PENDING_REQUESTS, recvGetPendingRequests],
+    [PacketCS.GET_FRIENDS_PANEL,        recvGetFriendsPanel],
+    [PacketCS.GET_USER_BY_ID,           recvGetUserById],
+    [PacketCS.SEARCH_USERS,             recvSearchUsers],
+    [PacketCS.GET_PENDING_REQUESTS,     recvGetPendingRequests],
     [PacketCS.GET_SENT_REQUESTS, recvGetSentRequests],
     [PacketCS.HANDLE_FRIEND_NOTIF, recvHandleFriendNotif],
 ]);
@@ -112,7 +114,8 @@ function normalizePost(p: any): any {
             ...c,
             id: String(c.id),
             user: { ...c.user, id: String(c.user.id) },
-            replyToId: c.replyToId ? String(c.replyToId) : undefined,
+            replyTo: c.replyToId ? String(c.replyToId) : undefined,
+            replyToId: undefined,
             replyToName: c.replyToComment?.user?.name ?? undefined,
             replyToComment: undefined,
         })),
@@ -215,7 +218,6 @@ async function recvResume(socket: WS, packet: Packet): Promise<void> {
 
     const user = await getUserByToken(token);
     if (!user) {
-        // token หมดอายุหรือไม่ถูกต้อง — แจ้ง client ให้ login ใหม่
         const p = new Packet(PacketSC.REJECT_LOGIN);
         p.writeString('session หมดอายุ กรุณาเข้าสู่ระบบใหม่');
         socket.send(p.toBuffer());
@@ -379,7 +381,8 @@ async function recvCreateComment(socket: WS, packet: Packet): Promise<void> {
         ...comment,
         id: String(comment.id),
         user: { ...comment.user, id: String(comment.user.id) },
-        replyToId: replyToId > 0 ? String(replyToId) : undefined,
+        replyTo: replyToId > 0 ? String(replyToId) : undefined,
+        replyToId: undefined,
         replyToName,
     };
 
@@ -454,7 +457,8 @@ async function recvGetConversation(socket: WS, packet: Packet): Promise<void> {
     if (!userId) return;
 
     const friendId = packet.readInt();
-    const messages = await getConversation(userId, friendId);
+    const offset = packet.readInt();
+    const messages = await getConversation(userId, friendId, 10, offset);
     const normalized = messages.map(m => ({
         ...m,
         senderId: String(m.senderId),
@@ -463,6 +467,8 @@ async function recvGetConversation(socket: WS, packet: Packet): Promise<void> {
 
     const p = new Packet(PacketSC.MESSAGE_LIST);
     p.writeString(JSON.stringify(normalized));
+    p.writeBool(messages.length === 10); // hasMore
+    p.writeInt(offset);
     socket.send(p.toBuffer());
 }
 
@@ -661,6 +667,40 @@ async function recvGetFriendsPanel(socket: WS, _packet: Packet): Promise<void> {
     const friends = await getFriends(userId);
     const p = new Packet(PacketSC.FRIEND_LIST_PANEL);
     p.writeString(JSON.stringify(friends.map((f: any) => ({ ...f, id: String(f.id) }))));
+    socket.send(p.toBuffer());
+}
+
+async function recvGetUserById(socket: WS, packet: Packet): Promise<void> {
+    const targetId = packet.readInt();
+    const user = await getUserById(targetId);
+    if (!user) { sendError(socket, 'User not found'); return; }
+    const p = new Packet(PacketSC.USER_DATA);
+    p.writeString(JSON.stringify({
+        id: String(user.id),
+        name: user.name,
+        nickname: user.nickname ?? '',
+        bio: user.bio ?? '',
+        province: user.province ?? '',
+        phone: user.phone ?? '',
+        profileImage: user.profileImage ?? '',
+        coverImage: user.coverImage ?? '',
+        createdAt: user.createdAt.toISOString(),
+    }));
+    socket.send(p.toBuffer());
+}
+
+async function recvSearchUsers(socket: WS, packet: Packet): Promise<void> {
+    const query = packet.readString();
+    if (!query || query.length < 2) return;
+    const { searchUsers } = await import('@/prisma/user');
+    const users = await searchUsers(query);
+    const p = new Packet(PacketSC.SEARCH_RESULTS);
+    p.writeString(JSON.stringify(users.map(u => ({
+        id: String(u.id),
+        name: u.name,
+        nickname: u.nickname ?? '',
+        profileImage: u.profileImage ?? '',
+    }))));
     socket.send(p.toBuffer());
 }
 

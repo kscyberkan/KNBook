@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Image as ImageIcon, Smile, Send, X, StickyNote } from 'lucide-react';
 import { VideoPlayer } from './VideoPlayer';
+import { EmojiTextarea } from './emoji/EmojiTextarea';
 import { Global } from '../Global';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -134,11 +135,11 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
               </AnimatePresence>
             </div>
 
-            <textarea
+            <EmojiTextarea
               placeholder={`${Global.user.name} คิดอะไรอยู่...`}
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              className="w-full bg-gray-50 hover:bg-gray-100 focus:bg-gray-100 py-2.5 px-4 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5B65F2]/15 transition-all duration-200 resize-none overflow-hidden text-[15px] leading-relaxed"
+              onChange={setText}
+              className="w-full bg-gray-50 hover:bg-gray-100 focus:bg-gray-100 py-2.5 px-4 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5B65F2]/15 transition-all duration-200 overflow-hidden text-[15px] leading-relaxed"
               style={{ height: isExpanded || hasContent ? '100px' : '42px' }}
               onFocus={() => setIsExpanded(true)}
               onBlur={() => { if (!hasContent) setIsExpanded(false); }}

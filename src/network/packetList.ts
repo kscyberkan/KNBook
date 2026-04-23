@@ -43,8 +43,10 @@ export enum PacketCS {
     GET_FRIEND_STATUS       = 74,
     GET_PENDING_REQUESTS    = 75,
     GET_SENT_REQUESTS       = 76,
-    GET_FRIENDS_PANEL       = 77,  // เหมือน GET_FRIENDS แต่ตอบด้วย FRIEND_LIST_PANEL
-    HANDLE_FRIEND_NOTIF     = 78,  // accept/decline จาก notification
+    GET_FRIENDS_PANEL       = 77,
+    HANDLE_FRIEND_NOTIF     = 78,
+    GET_USER_BY_ID          = 79,
+    SEARCH_USERS            = 80,
 }
 
 // Server → Client
@@ -84,6 +86,8 @@ export enum PacketSC {
     PROFILE_IMAGE_UPDATED = 60,
     COVER_IMAGE_UPDATED   = 61,
     PROFILE_UPDATED       = 62,
+    USER_DATA             = 64,
+    SEARCH_RESULTS        = 65,
 
     // Friend
     FRIEND_STATUS         = 70,

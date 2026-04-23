@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import Feed from './Feed';
 import Profile from './Profile';
 import EditProfile from './EditProfile';
@@ -71,6 +71,15 @@ export default function PageManager() {
   const [openPostId, setOpenPostId] = useState<string | null>(null);
   const mainScrollRef = useRef<HTMLElement>(null);
 
+  useLayoutEffect(() => {
+    const timer = setTimeout(() => {
+      if (mainScrollRef.current) {
+        mainScrollRef.current.scrollTop = 0;
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [currentPage, selectedUser]);
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
@@ -141,9 +150,20 @@ export default function PageManager() {
   };
 
   const navigateToProfile = (user?: User) => {
-    setSelectedUser(user);
-    setCurrentPage('profile');
-    setShowUserMenu(false);
+    if (user && user.id && !user.bio && !user.province) {
+      net.getUserById(Number(user.id));
+      const unsub = net.on(PacketSC.USER_DATA, (packet: Packet) => {
+        const data = JSON.parse(packet.readString()) as User;
+        unsub();
+        setSelectedUser(data);
+        setCurrentPage('profile');
+        setShowUserMenu(false);
+      });
+    } else {
+      setSelectedUser(user);
+      setCurrentPage('profile');
+      setShowUserMenu(false);
+    }
   };
 
   const navigateToEditProfile = () => {
@@ -222,7 +242,7 @@ export default function PageManager() {
 
           {/* Search Box (Centered on Mobile, beside Nav on Desktop) */}
           <div className="flex-1 md:flex-initial md:w-64">
-            <SearchBox />
+            <SearchBox onUserClick={(u) => navigateToProfile({ id: u.id, name: u.name, profileImage: u.profileImage })} />
           </div>
 
           {/* User Profile & Menu */}
@@ -269,7 +289,8 @@ export default function PageManager() {
                                 setShowNotifications(false);
                                 // navigate ตาม type
                                 if (notif.type === 'reaction' || notif.type === 'comment' || notif.type === 'share' || notif.type === 'post') {
-                                  if ((notif as any).refId) setOpenPostId(String((notif as any).refId));
+                                  console.log('[Notif] click type:', notif.type, 'refId:', notif.refId);
+                                  if (notif.refId) setOpenPostId(String(notif.refId));
                                 } else if (notif.type === 'message') {
                                   // TODO: open chat
                                 } else if (notif.type === 'friend_request') {

@@ -29,36 +29,78 @@ interface ChatWindowProps {
 export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserClick }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [inputText, setInputText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);  const [lightbox, setLightbox] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    net.getConversation(Number(friend.id));
+    net.getConversation(Number(friend.id), 0);
 
     const unsubList = net.on(PacketSC.MESSAGE_LIST, (packet: Packet) => {
       const data = JSON.parse(packet.readString()) as any[];
-      // normalize senderId เป็น string เพื่อเปรียบเทียบกับ Global.user.id
-      setMessages(data.map(m => ({ ...m, senderId: String(m.senderId ?? m.sender?.id ?? '') })));
+      const more = packet.readBool();
+      const reqOffset = packet.readInt();
+      const normalized = data.map(m => ({ ...m, senderId: String(m.senderId ?? m.sender?.id ?? ''), timestamp: m.timestamp ?? m.createdAt }));
+      if (reqOffset === 0) {
+        setMessages(normalized);
+      } else {
+        // prepend ข้อความเก่า — เก็บ scroll position ไว้
+        setMessages(prev => [...normalized, ...prev]);
+      }
+      setHasMore(more);
+      setOffset(reqOffset + data.length);
       setLoading(false);
+      setLoadingMore(false);
     });
 
     const unsubNew = net.on(PacketSC.NEW_MESSAGE, (packet: Packet) => {
       const msg = JSON.parse(packet.readString()) as any;
-      setMessages(prev => [...prev, { ...msg, senderId: String(msg.senderId ?? msg.sender?.id ?? '') }]);
+      setMessages(prev => [...prev, { ...msg, senderId: String(msg.senderId ?? msg.sender?.id ?? ''), timestamp: msg.timestamp ?? msg.createdAt }]);
+      setOffset(prev => prev + 1);
     });
 
     return () => { unsubList(); unsubNew(); };
   }, [friend.id]);
 
+  const shouldScrollRef = useRef(true);
+  const prevScrollHeightRef = useRef(0);
+
+  // scroll to bottom เฉพาะตอนโหลดครั้งแรกหรือรับข้อความใหม่
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (shouldScrollRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
+
+  // restore scroll position หลัง prepend ข้อความเก่า
+  useEffect(() => {
+    if (!loadingMore) {
+      const container = messagesContainerRef.current;
+      if (container && prevScrollHeightRef.current > 0) {
+        container.scrollTop = container.scrollHeight - prevScrollHeightRef.current;
+        prevScrollHeightRef.current = 0;
+        shouldScrollRef.current = true;
+      }
+    }
+  }, [loadingMore]);
+
+  const loadMore = () => {
+    if (loadingMore || !hasMore) return;
+    shouldScrollRef.current = false;
+    const container = messagesContainerRef.current;
+    prevScrollHeightRef.current = container?.scrollHeight ?? 0;
+    setLoadingMore(true);
+    net.getConversation(Number(friend.id), offset);
+  };
 
   const handleSend = (text?: string) => {
     const content = text ?? inputText.trim();
@@ -109,17 +151,47 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 bg-gray-50/60">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-3 py-4 space-y-3 bg-gray-50/60">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-4 border-[#5B65F2]/30 border-t-[#5B65F2] rounded-full animate-spin" />
           </div>
         ) : (
           <>
-            {messages.map((msg) => {
+            {hasMore && (
+              <div className="flex justify-center pb-1">
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="text-xs text-[#5B65F2] hover:text-[#4a54e1] font-medium px-4 py-1.5 rounded-full bg-[#5B65F2]/8 hover:bg-[#5B65F2]/15 transition-colors disabled:opacity-50"
+                >
+                  {loadingMore ? 'กำลังโหลด...' : 'โหลดข้อความเก่า'}
+                </button>
+              </div>
+            )}
+            {messages.map((msg, idx) => {
               const isMe = msg.senderId === Global.user.id;
+              const msgDate = new Date(msg.timestamp);
+              const prevDate = idx > 0 ? new Date(messages[idx - 1].timestamp) : null;
+              const showDateSep = !prevDate ||
+                msgDate.getFullYear() !== prevDate.getFullYear() ||
+                msgDate.getMonth() !== prevDate.getMonth() ||
+                msgDate.getDate() !== prevDate.getDate();
+              const today = new Date();
+              const isToday = msgDate.getFullYear() === today.getFullYear() && msgDate.getMonth() === today.getMonth() && msgDate.getDate() === today.getDate();
+              const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+              const isYesterday = msgDate.getFullYear() === yesterday.getFullYear() && msgDate.getMonth() === yesterday.getMonth() && msgDate.getDate() === yesterday.getDate();
+              const dateLabel = isToday ? 'วันนี้' : isYesterday ? 'เมื่อวาน' : msgDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
               return (
-                <motion.div
+                <React.Fragment key={msg.id}>
+                  {showDateSep && (
+                    <div className="flex items-center gap-3 my-2">
+                      <div className="flex-1 h-px bg-gray-200" />
+                      <span className="text-[11px] text-gray-400 font-medium px-2 flex-shrink-0">{dateLabel}</span>
+                      <div className="flex-1 h-px bg-gray-200" />
+                    </div>
+                  )}
+                  <motion.div
                   key={msg.id}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -176,10 +248,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
                       </a>
                     )}
                     <div className={`text-[10px] text-gray-400 px-1 ${isMe ? 'text-right' : ''}`}>
-                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {(() => {
+                        const d = new Date(msg.timestamp);
+                        const today = new Date();
+                        const isToday = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+                        const time = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                        if (isToday) return time;
+                        const date = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+                        return `${date} ${time}`;
+                      })()}
                     </div>
                   </div>
                 </motion.div>
+                </React.Fragment>
               );
             })}
             <div ref={messagesEndRef} />

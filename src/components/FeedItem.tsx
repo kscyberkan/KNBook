@@ -9,11 +9,14 @@ import Packet from '../network/packet';
 import { EmojiPicker } from './emoji/EmojiPicker';
 import { EmojiText } from './emoji/EmojiText';
 import { MentionInput } from './emoji/MentionInput';
+import { CommentInput } from './CommentInput';
+import { modal } from './Modal';
 
 interface FeedItemProps {
   postId?: string;
   user: User;
   createdAt?: string;
+  disableAnimation?: boolean;
   onUserClick?: () => void;
   postText?: string;
   postImageUrl?: string;
@@ -30,20 +33,30 @@ interface FeedItemProps {
   onCommentUserClick?: (user: User) => void;
 }
 
-function SharedPost({ post, isSub }: { post?: Post; isSub?: boolean }) {
+function SharedPost({ post, isSub, onUserClick }: { post?: Post; isSub?: boolean; onUserClick?: (user: User) => void }) {
   if (!post) return null;
   return (
     <div className={`rounded-xl overflow-hidden ${isSub ? 'mx-0 border-t-1' : 'mx-3 mb-3 border border-gray-200'} bg-gray-50 border-gray-200`}>
       <div className="p-3 flex items-center space-x-2 border-b border-gray-100 bg-white/60">
-        <img src={post.user.profileImage} alt={post.user.name} className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-200" />
+        <img
+          src={post.user.profileImage}
+          alt={post.user.name}
+          className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={() => onUserClick?.(post.user)}
+        />
         <div>
           <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-sm text-gray-900">{post.user.name}</span>
+            <span
+              className="font-semibold text-sm text-gray-900 cursor-pointer hover:text-[#5B65F2] transition-colors"
+              onClick={() => onUserClick?.(post.user)}
+            >
+              {post.user.name}
+            </span>
             {post.feeling && (
               <span className="text-[11px] text-gray-400">กำลังรู้สึก <span className="text-gray-600">{post.feeling}</span></span>
             )}
           </div>
-          <div className="text-[10px] text-gray-400">โพสต์ต้นฉบับ</div>
+          <div className="text-[10px] text-gray-400">โพสต์ต้นฉบับ · {formatRelativeTime(post.createdAt)}</div>
         </div>
       </div>
       <div className="bg-white">
@@ -62,8 +75,140 @@ function SharedPost({ post, isSub }: { post?: Post; isSub?: boolean }) {
           </div>
         )}
       </div>
-      {post.sharedPost && <SharedPost post={post.sharedPost} isSub />}
+      {post.sharedPost && <SharedPost post={post.sharedPost} isSub onUserClick={onUserClick} />}
     </div>
+  );
+}
+
+function formatRelativeTime(isoString?: string): string {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return 'เมื่อกี้';
+  if (mins < 60) return `${mins} นาทีที่แล้ว`;
+  if (hours < 24) return `${hours} ชั่วโมงที่แล้ว`;
+  if (days < 7) return `${days} วันที่แล้ว`;
+  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function CommentThread({ comment, replies, onCommentUserClick, onReply, comments, onComment, currentUser }: {
+  comment: Comment;
+  replies: Comment[];
+  onCommentUserClick?: (user: User) => void;
+  onReply: (c: Comment) => void;
+  comments: Comment[];
+  onComment?: (text: string, imageUrl?: string, stickerUrl?: string, replyToId?: string) => void;
+  currentUser: User;
+}) {
+  const [showReplies, setShowReplies] = React.useState(replies.length > 0);
+  const [prefillText, setPrefillText] = React.useState('');
+  const inlineInputRef = React.useRef<{ focus: () => void; setText: (t: string) => void } | null>(null);
+  const allUsers = comments.map(c => c.user);
+
+  // auto-expand เมื่อมี reply ใหม่
+  React.useEffect(() => {
+    if (replies.length > 0) setShowReplies(true);
+  }, [replies.length]);
+
+  // auto-expand เมื่อมี reply ใหม่เข้ามา
+  React.useEffect(() => {
+    if (replies.length > 0 && showReplies === false && replies.length === 1) {
+      setShowReplies(true);
+    }
+  }, [replies.length]);
+
+  const CommentBubble = ({ c, isReply }: { c: Comment; isReply?: boolean }) => (
+    <div className="flex items-start gap-2">
+      <img
+        src={c.user.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.user.name}`}
+        alt={c.user.name}
+        className="w-8 h-8 rounded-full object-cover flex-shrink-0 cursor-pointer"
+        onClick={() => onCommentUserClick?.(c.user)}
+      />
+      <div className="flex-1">
+        <div className="bg-gray-50 rounded-2xl px-3 py-2">
+          <span
+            className="text-xs font-bold text-gray-900 cursor-pointer hover:text-[#5B65F2] transition-colors mr-1"
+            onClick={() => onCommentUserClick?.(c.user)}
+          >
+            {c.user.name}
+          </span>
+          {c.text && <EmojiText text={c.text} className="text-sm text-gray-700 whitespace-pre-wrap" mentionUsers={allUsers} onMentionClick={(u) => onCommentUserClick?.(u)} />}
+          {c.imageUrl && <img src={c.imageUrl} alt="comment" className="mt-1.5 max-w-[200px] rounded-xl object-cover" />}
+          {c.stickerUrl && <img src={c.stickerUrl} alt="sticker" className="mt-1 w-16 h-16 object-contain" />}
+        </div>
+        <div className="flex items-center gap-3 mt-1 ml-2">
+          <span className="text-[10px] text-gray-400">{formatRelativeTime(c.createdAt)}</span>
+          <button
+            onClick={() => {
+              if (isReply) {
+                // reply ของ reply → focus inline input + @ชื่อ
+                setShowReplies(true);
+                setPrefillText(`@${c.user.name} `);
+                setTimeout(() => inlineInputRef.current?.focus(), 50);
+              } else {
+                onReply(c);
+              }
+            }}
+            className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-[#5B65F2] transition-colors"
+          >
+            <Reply size={12} /> ตอบกลับ
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
+      <CommentBubble c={comment} />
+      {replies.length > 0 && (
+        <div className="ml-10 mt-1.5">
+          {/* เส้นแนวตั้ง + ปุ่มดู replies */}
+          <div className="relative pl-4 border-l-2 border-gray-100 space-y-2">
+            {!showReplies && replies.length > 0 ? (
+              <button
+                onClick={() => setShowReplies(true)}
+                className="text-xs text-[#5B65F2] font-semibold hover:underline py-1"
+              >
+                ดูการตอบกลับทั้ง {replies.length} รายการ
+              </button>
+            ) : (
+              <AnimatePresence>
+                {replies.map(r => (
+                  <motion.div key={r.id} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
+                    <CommentBubble c={r} isReply />
+                  </motion.div>
+                ))}
+                {replies.length > 0 && (
+                  <button onClick={() => setShowReplies(false)} className="text-xs text-gray-400 hover:text-gray-600 py-1">
+                    ซ่อนการตอบกลับ
+                  </button>
+                )}
+              </AnimatePresence>
+            )}
+
+            {/* Inline reply input */}
+            <CommentInput
+              currentUser={currentUser}
+              replyTo={comment}
+              initialText={prefillText}
+              onInitialTextConsumed={() => setPrefillText('')}
+              onSubmit={(text, img, sticker, replyToId) => {
+                onComment?.(text, img, sticker, replyToId);
+                setShowReplies(true);
+              }}
+              mentionUsers={comments.map(c => c.user)}
+              compact
+            />
+          </div>
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -71,6 +216,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   postId,
   user,
   createdAt,
+  disableAnimation,
   onUserClick,
   postText,
   postImageUrl,
@@ -93,7 +239,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   const [comments, setComments] = useState<Comment[]>(
     (initialComments ?? []).map((c: any) => ({
       ...c,
-      id: String(c.id ?? Date.now()),
+      id: String(c.id ?? `init-${Math.random()}`),
       user: { ...c.user, id: String(c.user?.id ?? '') },
     }))
   );
@@ -111,6 +257,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   const [reactionsCount, setReactionsCount] = useState<Record<string, number>>(initialReactionsCount);
   const [reactedUsers, setReactedUsers] = useState<Record<string, string[]>>(initialReactedUsers);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showPostMenu, setShowPostMenu] = useState(false);
   const [showLikedByPopup, setShowLikedByPopup] = useState(false);
   const [likedByPopupData, setLikedByPopupData] = useState<{ type: string; color: string; users: string[] }[]>([]);
   const [likedByPopupPosition, setLikedByPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -126,10 +273,10 @@ export const FeedItem: React.FC<FeedItemProps> = ({
       const incomingPostId = String(packet.readInt());
       if (incomingPostId !== postId) return;
       const comment = JSON.parse(packet.readString()) as Comment;
-      // ไม่เพิ่มซ้ำถ้าเป็น comment ที่เราส่งเอง (มีอยู่แล้วใน state)
+      const normalizedId = String(comment.id);
       setComments(prev => {
-        if (prev.some(c => c.id === comment.id)) return prev;
-        return [...prev, { ...comment, id: String(comment.id), user: { ...comment.user, id: String(comment.user.id) } }];
+        if (prev.some(c => String(c.id) === normalizedId)) return prev;
+        return [...prev, { ...comment, id: normalizedId, user: { ...comment.user, id: String(comment.user.id) } }];
       });
     });
     return () => unsub();
@@ -149,8 +296,9 @@ export const FeedItem: React.FC<FeedItemProps> = ({
       uploadedImageUrl = json.url;
     }
 
-    // ส่งไป server — รอ NEW_COMMENT broadcast กลับมาแสดง (ไม่ optimistic add)
-    onComment?.(trimmed, uploadedImageUrl || commentImage || undefined, commentSticker || undefined, replyTo?.id);
+    // ส่งไป server — รอ NEW_COMMENT broadcast กลับมาแสดง
+    const replyToId = replyTo?.id && !replyTo.id.startsWith('init-') ? replyTo.id : undefined;
+    onComment?.(trimmed, uploadedImageUrl || commentImage || undefined, commentSticker || undefined, replyToId);
 
     setCommentText('');
     setCommentImage(null);
@@ -262,7 +410,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={disableAnimation ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-4 hover:shadow-md transition-shadow duration-300"
@@ -290,26 +438,53 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                 </span>
               )}
             </div>
-            <div className="text-xs text-gray-400 mt-0.5">{
-              (() => {
-                const d = new Date(createdAt || Date.now());
-                const now = new Date();
-                const diff = now.getTime() - d.getTime();
-                const mins = Math.floor(diff / 60000);
-                const hours = Math.floor(diff / 3600000);
-                const days = Math.floor(diff / 86400000);
-                if (mins < 1) return 'เมื่อกี้';
-                if (mins < 60) return `${mins} นาทีที่แล้ว`;
-                if (hours < 24) return `${hours} ชั่วโมงที่แล้ว`;
-                if (days < 7) return `${days} วันที่แล้ว`;
-                return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
-              })()
-            }</div>
+            <div className="text-xs text-gray-400 mt-0.5">{formatRelativeTime(createdAt)}</div>
           </div>
         </div>
-        <button className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-600">
-          <MoreHorizontal size={18} />
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowPostMenu(!showPostMenu)}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-600"
+          >
+            <MoreHorizontal size={18} />
+          </button>
+          <AnimatePresence>
+            {showPostMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowPostMenu(false)} />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                  transition={{ duration: 0.1 }}
+                  className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-20"
+                >
+                  {user.id === Global.user.id && (
+                    <button
+                      onClick={() => {
+                        setShowPostMenu(false);
+                        modal.confirm(
+                          'ต้องการลบโพสต์นี้ใช่หรือไม่?',
+                          () => { if (postId) net.deletePost(Number(postId)); },
+                          'ลบโพสต์'
+                        );
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <X size={14} /> ลบโพสต์
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowPostMenu(false)}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    รายงาน
+                  </button>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Post Content */}
@@ -332,7 +507,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
             <img src={stickerUrl} alt="Sticker" className="w-36 h-36 object-contain" />
           </div>
         )}
-        <SharedPost post={sharedPost} />
+        <SharedPost post={sharedPost} onUserClick={onCommentUserClick} />
       </div>
 
       {/* Reaction Summary */}
@@ -467,246 +642,36 @@ export const FeedItem: React.FC<FeedItemProps> = ({
       {comments.length > 0 && (
         <div className="px-4 py-3 space-y-2.5 border-t border-gray-50">
           <AnimatePresence>
-            {comments.map((comment) => (
-              <motion.div
-                key={comment.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-start space-x-2"
-              >
-                <img
-                  src={comment.user.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.user.name}`}
-                  alt="User"
-                  className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                />
-                <div className="flex-1">
-                  <div className="bg-gray-50 rounded-2xl px-3 py-2">
-                    <div
-                      className="text-xs font-bold text-gray-900 mb-0.5 cursor-pointer hover:text-[#5B65F2] transition-colors"
-                      onClick={() => onCommentUserClick?.(comment.user)}
-                    >
-                      {comment.user.name}
-                    </div>
-                    {/* @mention สำหรับ reply */}
-                    {comment.replyToName && (
-                      <span
-                        className="text-xs text-[#5B65F2] font-medium mr-1 cursor-pointer hover:underline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // หา user จาก comment ที่ถูก reply
-                          const replyUser = comments.find(c => c.id === comment.replyTo);
-                          if (replyUser) onCommentUserClick?.(replyUser.user);
-                        }}
-                      >
-                        @{comment.replyToName}
-                      </span>
-                    )}
-                    {comment.text && <EmojiText
-                      text={comment.text}
-                      className="text-sm text-gray-700 whitespace-pre-wrap"
-                      mentionUsers={comments.map(c => c.user)}
-                      onMentionClick={(u) => onCommentUserClick?.(u)}
-                    />}
-                    {comment.imageUrl && (
-                      <img src={comment.imageUrl} alt="comment" className="mt-1.5 max-w-[200px] rounded-xl object-cover" />
-                    )}
-                    {comment.stickerUrl && (
-                      <img src={comment.stickerUrl} alt="sticker" className="mt-1 w-16 h-16 object-contain" />
-                    )}
-                  </div>
-                  {/* Reply button — ชั้นแรกเท่านั้น */}
-                  {!comment.replyTo && (
-                    <button
-                      onClick={() => { setReplyTo(comment); inputRef.current?.focus(); }}
-                      className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-[#5B65F2] mt-1 ml-2 transition-colors"
-                    >
-                      <Reply size={12} /> ตอบกลับ
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            ))}
+            {comments
+              .filter(c => !c.replyTo) // แสดงเฉพาะ top-level
+              .map((comment) => {
+                const replies = comments.filter(c => c.replyTo === comment.id);
+                return (
+                  <CommentThread
+                    key={comment.id}
+                    comment={comment}
+                    replies={replies}
+                    onCommentUserClick={onCommentUserClick}
+                    onReply={(c) => { setReplyTo(c); inputRef.current?.focus(); }}
+                    comments={comments}
+                    onComment={onComment}
+                    currentUser={{ id: Global.user.id, name: Global.user.name, profileImage: Global.user.profileImage }}
+                  />
+                );
+              })}
           </AnimatePresence>
         </div>
       )}
-
       {/* Comment Input */}
-      <div className="px-4 pb-3 pt-2">
-        {/* Reply indicator */}
-        <AnimatePresence>
-          {replyTo && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="flex items-center gap-2 mb-2 px-3 py-1.5 bg-[#5B65F2]/5 rounded-xl border border-[#5B65F2]/10"
-            >
-              <Reply size={12} className="text-[#5B65F2]" />
-              <span className="text-xs text-gray-500">ตอบกลับ <span className="font-semibold text-[#5B65F2]">{replyTo.user.name}</span></span>
-              <button onClick={() => setReplyTo(null)} className="ml-auto text-gray-400 hover:text-gray-600">
-                <X size={12} />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Image/Sticker preview */}
-        <AnimatePresence>
-          {(commentImage || commentSticker) && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mb-2 relative inline-block">
-              <img
-                src={commentImage || commentSticker || ''}
-                alt="preview"
-                className="max-h-24 rounded-xl object-contain border border-gray-100"
-              />
-              <button
-                onClick={() => { setCommentImage(null); setCommentImageFile(null); setCommentSticker(null); }}
-                className="absolute -top-1 -right-1 bg-gray-800 text-white p-0.5 rounded-full"
-              >
-                <X size={10} />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Sticker picker */}
-        <AnimatePresence>
-          {showStickerPicker && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              className="mb-2 p-2 bg-white border border-gray-100 rounded-2xl shadow-lg grid grid-cols-6 gap-1"
-            >
-              {['sticker1','sticker2','sticker3','sticker4','sticker5','sticker6'].map(s => {
-                const url = `https://api.dicebear.com/7.x/bottts/svg?seed=${s}`;
-                return (
-                  <button
-                    key={s}
-                    onClick={() => { setCommentSticker(url); setCommentImage(null); setCommentImageFile(null); setShowStickerPicker(false); }}
-                    className={`p-1 rounded-xl hover:bg-gray-100 transition-all hover:scale-110 ${commentSticker === url ? 'bg-[#5B65F2]/10 ring-1 ring-[#5B65F2]' : ''}`}
-                  >
-                    <img src={url} alt={s} className="w-10 h-10 object-contain" />
-                  </button>
-                );
-              })}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="flex items-end space-x-2">
-          <img
-            src={Global.user.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${Global.user.name}`}
-            alt="Profile"
-            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-          />
-          <div className="flex-1 flex items-end bg-gray-100 hover:bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-[#5B65F2]/20 rounded-2xl px-3 py-2 transition-all border border-transparent focus-within:border-gray-200 relative">
-            <MentionInput
-              value={commentText}
-              onChange={(val) => {                setCommentText(val);
-                const match = val.match(/@(\S*)$/);
-                if (match) {
-                  const q = match[1]!;
-                  setMentionQuery(q);
-                  const seen = new Map<string, {id: string; name: string; profileImage: string}>();
-                  comments.forEach(c => {
-                    if (!seen.has(c.user.id) && c.user.name.toLowerCase().includes(q.toLowerCase())) {
-                      seen.set(c.user.id, { id: c.user.id, name: c.user.name, profileImage: c.user.profileImage });
-                    }
-                  });
-                  setMentionResults([...seen.values()].slice(0, 5));
-                  setMentionIndex(0);
-                } else {
-                  setMentionQuery(null);
-                  setMentionResults([]);
-                }
-              }}
-              onKeyDown={handleKeyDown}
-              onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionResults([]); }, 150)}
-              placeholder={replyTo ? `ตอบกลับ ${replyTo.user.name}...` : 'แสดงความคิดเห็น...'}
-              mentionUsers={comments.map(c => c.user)}
-              onMentionClick={(u) => onCommentUserClick?.(u)}
-              divRef={inputRef}
-              className="text-gray-700"
-            />
-            {/* Mention dropdown */}
-            {mentionQuery !== null && mentionResults.length > 0 && (
-              <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden z-30 w-52">
-                {mentionResults.map((u, i) => (
-                  <div
-                    key={u.id}
-                    className={`flex items-center gap-2 px-3 py-2 transition-colors ${i === mentionIndex ? 'bg-[#5B65F2]/10' : 'hover:bg-gray-50'}`}
-                    onMouseEnter={() => setMentionIndex(i)}
-                  >
-                    {/* คลิกรูปหรือชื่อ → ไปโปรไฟล์ */}
-                    <img
-                      src={u.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`}
-                      className="w-6 h-6 rounded-full object-cover flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-[#5B65F2]"
-                      onClick={() => onCommentUserClick?.({ id: u.id, name: u.name, profileImage: u.profileImage })}
-                    />
-                    <span
-                      className="text-sm font-medium text-gray-800 truncate flex-1 cursor-pointer"
-                      onClick={() => onCommentUserClick?.({ id: u.id, name: u.name, profileImage: u.profileImage })}
-                    >
-                      {u.name}
-                    </span>
-                    {/* คลิก @ → แทรก mention */}
-                    <button
-                      onMouseDown={(e) => { e.preventDefault(); selectMention(u); }}
-                      className="text-[10px] text-[#5B65F2] font-bold px-1.5 py-0.5 rounded bg-[#5B65F2]/10 hover:bg-[#5B65F2]/20 flex-shrink-0"
-                    >
-                      @
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center space-x-1.5 text-gray-400 ml-2 mb-0.5 relative">
-              <div className="relative">
-                <button
-                  onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowStickerPicker(false); }}
-                  className={`hover:text-yellow-500 transition-colors ${showEmojiPicker ? 'text-yellow-500' : ''}`}
-                >
-                  <span className="text-base">😊</span>
-                </button>
-                <EmojiPicker
-                  open={showEmojiPicker}
-                  onSelect={(id) => setCommentText(prev => prev + `:${id}:`)}
-                  onClose={() => setShowEmojiPicker(false)}
-                />
-              </div>
-              <button
-                onClick={() => { setShowStickerPicker(!showStickerPicker); setShowEmojiPicker(false); }}
-                className={`hover:text-purple-500 transition-colors ${showStickerPicker ? 'text-purple-500' : ''}`}
-              >
-                <StickyNote size={18} />
-              </button>
-              <button onClick={() => commentImageRef.current?.click()} className="hover:text-green-500 transition-colors">
-                <ImageIcon size={18} />
-              </button>
-              {(commentText.trim() || commentImage || commentSticker) && (
-                <button onClick={handleSendComment} className="text-[#5B65F2] hover:text-[#4a54e1] transition-colors">
-                  <Send size={18} />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-        <input
-          ref={commentImageRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            setCommentImageFile(file);
-            setCommentImage(URL.createObjectURL(file));
-            e.target.value = '';
-          }}
-        />
-      </div>
+      <CommentInput
+        currentUser={{ id: Global.user.id, name: Global.user.name, profileImage: Global.user.profileImage }}
+        replyTo={replyTo}
+        onCancelReply={() => setReplyTo(null)}
+        onSubmit={(text, img, sticker, replyToId) => {
+          onComment?.(text, img, sticker, replyToId);
+        }}
+        mentionUsers={comments.map(c => c.user)}
+      />
 
       {/* Liked By Popup */}
       {showLikedByPopup && (

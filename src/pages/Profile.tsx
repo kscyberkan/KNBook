@@ -160,7 +160,7 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
     : 'KN Book';
 
   return (
-    <div className="flex-1 bg-[#F0F2F5] min-h-screen">
+    <div className="flex-1 bg-[#F0F2F5]">
       <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
       <input type="file" ref={coverInputRef} onChange={handleCoverChange} accept="image/*" className="hidden" />
 

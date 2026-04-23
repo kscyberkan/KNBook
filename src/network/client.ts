@@ -42,6 +42,12 @@ class NetworkClient {
                 return;
             }
 
+            if (id === PacketSC.ERROR) {
+                const msg = packet.readString();
+                console.warn('[WS] server error:', msg);
+                return;
+            }
+
             // FORCE_LOGOUT
             if (id === PacketSC.FORCE_LOGOUT) {
                 this.ws?.close();
@@ -69,6 +75,7 @@ class NetworkClient {
         if (this.ws?.readyState === WebSocket.OPEN) {
             this.ws.send(buf);
         } else {
+            console.warn('[WS] not open, queuing packet', packet.getPacketID(), 'ws:', this.ws?.readyState);
             this.queue.push(buf);
         }
     }
@@ -203,9 +210,10 @@ class NetworkClient {
         this.send(p);
     }
 
-    getConversation(friendId: number): void {
+    getConversation(friendId: number, offset = 0): void {
         const p = new Packet(PacketCS.GET_CONVERSATION);
         p.writeInt(friendId);
+        p.writeInt(offset);
         this.send(p);
     }
 
@@ -279,6 +287,18 @@ class NetworkClient {
 
     getSentRequests(): void {
         this.send(new Packet(PacketCS.GET_SENT_REQUESTS));
+    }
+
+    getUserById(userId: number): void {
+        const p = new Packet(PacketCS.GET_USER_BY_ID);
+        p.writeInt(userId);
+        this.send(p);
+    }
+
+    searchUsers(query: string): void {
+        const p = new Packet(PacketCS.SEARCH_USERS);
+        p.writeString(query);
+        this.send(p);
     }
 
     updateProfile(data: { name: string; nickname: string; bio: string; province: string; phone: string }): void {
