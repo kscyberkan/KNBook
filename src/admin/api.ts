@@ -96,6 +96,7 @@ export async function getUsers(req: Request) {
 export async function banUser(req: Request) {
     const { userId, banned }: { userId: number; banned: boolean } = await req.json();
     await prisma.user.update({ where: { id: userId }, data: { banned } });
+    await prisma.adminLog.create({ data: { action: banned ? 'ban_user' : 'unban_user', targetId: userId } });
 
     // ถ้าแบน — เตะออกจาก session ทันทีด้วย FORCE_LOGOUT
     if (banned) {
@@ -160,6 +161,7 @@ export async function getPostDetail(_req: Request, postId: number) {
 export async function adminDeletePost(req: Request) {
     const { postId }: { postId: number } = await req.json();
     await prisma.post.delete({ where: { id: postId } });
+    await prisma.adminLog.create({ data: { action: 'delete_post', targetId: postId } });
     return Response.json({ ok: true });
 }
 
@@ -194,6 +196,7 @@ export async function getReports(req: Request) {
 export async function dismissReport(req: Request) {
     const { reportId }: { reportId: number } = await req.json();
     await prisma.report.delete({ where: { id: reportId } });
+    await prisma.adminLog.create({ data: { action: 'dismiss_report', targetId: reportId } });
     return Response.json({ ok: true });
 }
 
@@ -214,6 +217,50 @@ export async function handleAdminApi(req: Request): Promise<Response> {
     if (path === '/posts/delete' && method === 'POST') return adminDeletePost(req);
     if (path === '/reports' && method === 'GET') return getReports(req);
     if (path === '/reports/dismiss' && method === 'POST') return dismissReport(req);
+    if (path === '/logs' && method === 'GET') return getAuditLogs(req);
+    if (path === '/export/users' && method === 'GET') return exportUsersCSV();
+    if (path === '/export/stats' && method === 'GET') return exportStatsCSV();
 
     return new Response('Not found', { status: 404 });
+}
+
+// ─── Audit Log ────────────────────────────────────────────────────────────────
+
+export async function getAuditLogs(req: Request) {
+    const url = new URL(req.url);
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const limit = 50;
+    const [logs, total] = await Promise.all([
+        prisma.adminLog.findMany({ orderBy: { createdAt: 'desc' }, take: limit, skip: (page - 1) * limit }),
+        prisma.adminLog.count(),
+    ]);
+    return Response.json({ logs, total, page, pages: Math.ceil(total / limit) });
+}
+
+// ─── CSV Export ───────────────────────────────────────────────────────────────
+
+export async function exportUsersCSV() {
+    const users = await prisma.user.findMany({
+        select: { id: true, name: true, username: true, createdAt: true, banned: true, _count: { select: { posts: true } } },
+        orderBy: { createdAt: 'desc' },
+    });
+    const rows = [
+        'ID,ชื่อ,Username,สมัครเมื่อ,สถานะ,จำนวนโพสต์',
+        ...users.map(u => `${u.id},"${u.name}","${u.username}","${u.createdAt.toISOString()}","${u.banned ? 'แบน' : 'ปกติ'}",${u._count.posts}`),
+    ].join('\n');
+    return new Response('\uFEFF' + rows, {
+        headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="users.csv"' },
+    });
+}
+
+export async function exportStatsCSV() {
+    const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - 29);
+    const posts = await prisma.$queryRaw<{ date: string; count: bigint }[]>`
+        SELECT DATE("createdAt") as date, COUNT(*) as count FROM "Post"
+        WHERE "createdAt" >= ${weekStart} GROUP BY DATE("createdAt") ORDER BY date ASC
+    `;
+    const rows = ['วันที่,จำนวนโพสต์', ...posts.map(r => `"${r.date}",${Number(r.count)}`)].join('\n');
+    return new Response('\uFEFF' + rows, {
+        headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="stats.csv"' },
+    });
 }

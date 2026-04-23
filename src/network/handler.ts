@@ -9,7 +9,9 @@ import prisma from '@/prisma/client';
 import { createMessage, getConversation, markMessagesRead } from '@/prisma/message';
 import { createNotification, upsertNotification, getNotifications, markNotificationRead, markAllNotificationsRead, markNotificationHandled } from '@/prisma/notification';
 import { createReport } from '@/prisma/report';
+import { addBookmark, removeBookmark, getBookmarks } from '@/prisma/bookmark';
 import { checkRateLimit } from './rateLimit';
+import { sanitizeText, sanitizeShort } from '@/utils/sanitize';
 import { getFriendStatus, sendFriendRequest, acceptFriendRequest, removeFriend, getFriends, getPendingRequests, getSentRequests } from '@/prisma/friendship';
 import { createDefaultAvatar } from '@/utils/defaultAvatar';
 
@@ -50,6 +52,12 @@ const handlers = new Map<number, Handler>([
     [PacketCS.GET_SENT_REQUESTS, recvGetSentRequests],
     [PacketCS.HANDLE_FRIEND_NOTIF, recvHandleFriendNotif],
     [PacketCS.REPORT_POST, recvReportPost],
+    [PacketCS.BOOKMARK_POST, recvBookmarkPost],
+    [PacketCS.UNBOOKMARK_POST, recvUnbookmarkPost],
+    [PacketCS.GET_BOOKMARKS, recvGetBookmarks],
+    [PacketCS.REACT_MESSAGE, recvReactMessage],
+    [PacketCS.UNREACT_MESSAGE, recvUnreactMessage],
+    [PacketCS.GET_BOOKMARK_IDS, recvGetBookmarkIds],
 ]);
 
 // ─── Packet Queue ────────────────────────────────────────────────────────────
@@ -301,14 +309,14 @@ async function recvCreatePost(socket: WS, packet: Packet): Promise<void> {
     const videoUrl = packet.readString();
     const feeling = packet.readString();
     const stickerUrl = packet.readString();
-    const sharedFromId = packet.readInt(); // 0 = ไม่ได้แชร์
+    const sharedFromId = packet.readInt();
 
     const post = await createPost({
         userId,
-        text: text || undefined,
+        text: sanitizeText(text) || undefined,
         imageUrl: imageUrl || undefined,
         videoUrl: videoUrl || undefined,
-        feeling: feeling || undefined,
+        feeling: sanitizeShort(feeling, 50) || undefined,
         stickerUrl: stickerUrl || undefined,
         sharedFromId: sharedFromId > 0 ? sharedFromId : undefined,
     });
@@ -398,7 +406,7 @@ async function recvCreateComment(socket: WS, packet: Packet): Promise<void> {
 
     const comment = await createComment({
         postId, userId,
-        text:       text       || undefined,
+        text:       sanitizeText(text) || undefined,
         imageUrl:   imageUrl   || undefined,
         stickerUrl: stickerUrl || undefined,
         replyToId:  replyToId > 0 ? replyToId : undefined,
@@ -590,16 +598,22 @@ async function recvUpdateProfile(socket: WS, packet: Packet): Promise<void> {
     const province = packet.readString();
     const phone = packet.readString();
 
+    const cleanName     = sanitizeShort(name, 50) || undefined;
+    const cleanNickname = sanitizeShort(nickname, 50) || undefined;
+    const cleanBio      = sanitizeText(bio) || undefined;
+    const cleanProvince = sanitizeShort(province, 100) || undefined;
+    const cleanPhone    = sanitizeShort(phone, 20) || undefined;
+
     await updateUser(userId, {
-        name: name || undefined,
-        nickname: nickname || undefined,
-        bio: bio || undefined,
-        province: province || undefined,
-        phone: phone || undefined,
+        name: cleanName,
+        nickname: cleanNickname,
+        bio: cleanBio,
+        province: cleanProvince,
+        phone: cleanPhone,
     });
 
     const p = new Packet(PacketSC.PROFILE_UPDATED);
-    p.writeString(JSON.stringify({ name, nickname, bio, province, phone }));
+    p.writeString(JSON.stringify({ name: cleanName, nickname: cleanNickname, bio: cleanBio, province: cleanProvince, phone: cleanPhone }));
     socket.send(p.toBuffer());
 }
 
@@ -800,5 +814,84 @@ async function recvReportPost(socket: WS, packet: Packet): Promise<void> {
     await createReport({ postId, userId, reason });
 
     const p = new Packet(PacketSC.REPORT_OK);
+    socket.send(p.toBuffer());
+}
+
+async function recvBookmarkPost(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const postId = packet.readInt();
+    await addBookmark(userId, postId);
+    const p = new Packet(PacketSC.BOOKMARK_UPDATE);
+    p.writeInt(postId); p.writeBool(true);
+    socket.send(p.toBuffer());
+}
+
+async function recvUnbookmarkPost(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const postId = packet.readInt();
+    await removeBookmark(userId, postId);
+    const p = new Packet(PacketSC.BOOKMARK_UPDATE);
+    p.writeInt(postId); p.writeBool(false);
+    socket.send(p.toBuffer());
+}
+
+async function recvGetBookmarks(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const offset = packet.readInt();
+    const rows = await getBookmarks(userId, 10, offset);
+    const posts = rows.map(r => normalizePostForApi(r.post));
+    const p = new Packet(PacketSC.BOOKMARK_LIST);
+    p.writeString(JSON.stringify(posts));
+    p.writeBool(rows.length === 10);
+    socket.send(p.toBuffer());
+}
+
+async function recvReactMessage(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const messageId = packet.readInt();
+    const emoji = packet.readString();
+
+    await prisma.messageReaction.upsert({
+        where: { messageId_userId: { messageId, userId } },
+        update: { emoji },
+        create: { messageId, userId, emoji },
+    });
+
+    // ส่งให้ทั้งสองฝ่าย
+    const msg = await prisma.message.findUnique({ where: { id: messageId }, select: { senderId: true, receiverId: true } });
+    if (!msg) return;
+
+    const p = new Packet(PacketSC.MESSAGE_REACTION_UPDATE);
+    p.writeString(JSON.stringify({ messageId, userId, emoji }));
+    sendToUser(msg.senderId, p.toBuffer());
+    if (msg.receiverId !== msg.senderId) sendToUser(msg.receiverId, p.toBuffer());
+}
+
+async function recvUnreactMessage(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const messageId = packet.readInt();
+
+    await prisma.messageReaction.deleteMany({ where: { messageId, userId } });
+
+    const msg = await prisma.message.findUnique({ where: { id: messageId }, select: { senderId: true, receiverId: true } });
+    if (!msg) return;
+
+    const p = new Packet(PacketSC.MESSAGE_REACTION_UPDATE);
+    p.writeString(JSON.stringify({ messageId, userId, emoji: null }));
+    sendToUser(msg.senderId, p.toBuffer());
+    if (msg.receiverId !== msg.senderId) sendToUser(msg.receiverId, p.toBuffer());
+}
+
+async function recvGetBookmarkIds(socket: WS, _packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+    const rows = await prisma.bookmark.findMany({ where: { userId }, select: { postId: true } });
+    const p = new Packet(PacketSC.BOOKMARK_IDS);
+    p.writeString(JSON.stringify(rows.map(r => String(r.postId))));
     socket.send(p.toBuffer());
 }

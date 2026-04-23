@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ThumbsUp, MessageCircle, Share2, Image as ImageIcon, StickyNote, Send, Heart, Laugh, Annoyed, Frown, Angry, MoreHorizontal, X, Reply, Flag } from 'lucide-react';
+import { ThumbsUp, MessageCircle, Share2, Image as ImageIcon, StickyNote, Send, Heart, Laugh, Annoyed, Frown, Angry, MoreHorizontal, X, Reply, Flag, Bookmark } from 'lucide-react';
 import { Global } from '../Global';
 import { VideoPlayer } from './VideoPlayer';
 import { type User, type Post, type Comment } from '../types';
@@ -28,6 +28,8 @@ interface FeedItemProps {
   initialComments?: Comment[];
   sharedPost?: Post;
   onShare?: () => void;
+  onBookmark?: (bookmarked: boolean) => void;
+  initialBookmarked?: boolean;
   onReact?: (type: string | null) => void;
   onComment?: (text: string, imageUrl?: string, stickerUrl?: string, replyToId?: string) => void;
   onCommentUserClick?: (user: User) => void;
@@ -228,6 +230,8 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   initialComments,
   sharedPost,
   onShare,
+  onBookmark,
+  initialBookmarked = false,
   onReact,
   onComment,
   onCommentUserClick,
@@ -261,6 +265,12 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportCustomText, setReportCustomText] = useState('');
+  const [bookmarked, setBookmarked] = useState(initialBookmarked);
+
+  // sync เมื่อ parent อัปเดต initialBookmarked (เช่น หลัง BOOKMARK_IDS โหลดมา)
+  useEffect(() => {
+    setBookmarked(initialBookmarked);
+  }, [initialBookmarked]);
   const [showLikedByPopup, setShowLikedByPopup] = useState(false);
   const [likedByPopupData, setLikedByPopupData] = useState<{ type: string; color: string; users: string[] }[]>([]);
   const [likedByPopupPosition, setLikedByPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -638,6 +648,20 @@ export const FeedItem: React.FC<FeedItemProps> = ({
         >
           <Share2 size={18} />
           <span>แชร์</span>
+        </button>
+
+        <button
+          onClick={() => {
+            const next = !bookmarked;
+            setBookmarked(next);
+            onBookmark?.(next);
+          }}
+          className={`flex items-center justify-center py-2 px-3 rounded-xl transition-colors text-sm font-semibold ${
+            bookmarked ? 'text-[#5B65F2]' : 'text-gray-500 hover:bg-gray-50'
+          }`}
+          title={bookmarked ? 'ยกเลิกบันทึก' : 'บันทึกโพสต์'}
+        >
+          <Bookmark size={18} fill={bookmarked ? 'currentColor' : 'none'} />
         </button>
       </div>
 

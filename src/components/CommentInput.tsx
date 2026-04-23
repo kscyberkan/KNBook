@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Send, StickyNote, Image as ImageIcon, X } from 'lucide-react';
+import { Send, StickyNote, Image as ImageIcon, X, Smile } from 'lucide-react';
 import { type User, type Comment } from '../types';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MentionInput } from './emoji/MentionInput';
@@ -171,17 +171,26 @@ export const CommentInput: React.FC<CommentInputProps> = ({
             divRef={inputRef}
             className="text-gray-700"
           />
-          <div className="flex items-center gap-1.5 text-gray-400 ml-2 mb-0.5 relative">
+          <div className="flex items-center gap-1 text-gray-400 ml-2 mb-0.5 relative">
             <div className="relative">
-              <button onClick={() => { setShowEmoji(!showEmoji); setShowSticker(false); }} className={`hover:text-yellow-500 transition-colors ${showEmoji ? 'text-yellow-500' : ''}`}>
-                <span className="text-base leading-none">😊</span>
+              <button
+                onClick={() => { setShowEmoji(!showEmoji); setShowSticker(false); }}
+                className={`p-1 rounded-lg transition-colors ${showEmoji ? 'text-yellow-500 bg-yellow-50' : 'hover:text-yellow-500 hover:bg-yellow-50'}`}
+              >
+                <Smile size={16} />
               </button>
               <EmojiPicker open={showEmoji} onSelect={(id) => setText(prev => prev + `:${id}:`)} onClose={() => setShowEmoji(false)} />
             </div>
-            <button onClick={() => { setShowSticker(!showSticker); setShowEmoji(false); }} className={`hover:text-purple-500 transition-colors ${showSticker ? 'text-purple-500' : ''}`}>
+            <button
+              onClick={() => { setShowSticker(!showSticker); setShowEmoji(false); }}
+              className={`p-1 rounded-lg transition-colors ${showSticker ? 'text-purple-500 bg-purple-50' : 'hover:text-purple-500 hover:bg-purple-50'}`}
+            >
               <StickyNote size={16} />
             </button>
-            <button onClick={() => imageRef.current?.click()} className="hover:text-green-500 transition-colors">
+            <button
+              onClick={() => imageRef.current?.click()}
+              className="p-1 rounded-lg hover:text-green-500 hover:bg-green-50 transition-colors"
+            >
               <ImageIcon size={16} />
             </button>
             {hasContent && (

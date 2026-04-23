@@ -1,5 +1,6 @@
 import Packet from './packet';
 import { PacketCS, PacketSC } from './packetList';
+import { compressImage } from '../utils/imageCompress';
 
 type Handler = (packet: Packet) => void;
 
@@ -315,6 +316,41 @@ class NetworkClient {
         this.send(p);
     }
 
+    bookmarkPost(postId: number): void {
+        const p = new Packet(PacketCS.BOOKMARK_POST);
+        p.writeInt(postId);
+        this.send(p);
+    }
+
+    unbookmarkPost(postId: number): void {
+        const p = new Packet(PacketCS.UNBOOKMARK_POST);
+        p.writeInt(postId);
+        this.send(p);
+    }
+
+    getBookmarks(offset = 0): void {
+        const p = new Packet(PacketCS.GET_BOOKMARKS);
+        p.writeInt(offset);
+        this.send(p);
+    }
+
+    getBookmarkIds(): void {
+        this.send(new Packet(PacketCS.GET_BOOKMARK_IDS));
+    }
+
+    reactMessage(messageId: number, emoji: string): void {
+        const p = new Packet(PacketCS.REACT_MESSAGE);
+        p.writeInt(messageId);
+        p.writeString(emoji);
+        this.send(p);
+    }
+
+    unreactMessage(messageId: number): void {
+        const p = new Packet(PacketCS.UNREACT_MESSAGE);
+        p.writeInt(messageId);
+        this.send(p);
+    }
+
     updateProfile(data: { name: string; nickname: string; bio: string; province: string; phone: string }): void {
         const p = new Packet(PacketCS.UPDATE_PROFILE);
         p.writeString(data.name);
@@ -351,8 +387,18 @@ async function uploadFile(
     source: 'post' | 'chat' | 'profile' | 'cover' = 'post',
     userId?: string
 ): Promise<string> {
+    // compress รูปก่อน upload
+    const toUpload = file.type.startsWith('image/')
+        ? await compressImage(file, {
+            maxWidth: source === 'profile' || source === 'cover' ? 800 : 1920,
+            maxHeight: source === 'profile' || source === 'cover' ? 800 : 1920,
+            quality: source === 'profile' || source === 'cover' ? 0.85 : 0.82,
+            maxSizeKB: source === 'profile' || source === 'cover' ? 150 : 300,
+        })
+        : file;
+
     const form = new FormData();
-    form.append('file', file);
+    form.append('file', toUpload);
     form.append('source', source);
     if (userId) form.append('userId', userId);
     const res = await fetch('/api/upload', { method: 'POST', body: form });

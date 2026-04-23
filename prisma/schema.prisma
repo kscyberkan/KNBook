@@ -31,6 +31,8 @@ model User {
   friendsAdded     Friendship[] @relation("FriendshipRequester")
   friendsReceived  Friendship[] @relation("FriendshipAddressee")
   reports          Report[]
+  bookmarks        Bookmark[]
+  messageReactions MessageReaction[]
 }
 
 model Post {
@@ -51,6 +53,7 @@ model Post {
   sharedFrom   Post?    @relation("SharedPosts", fields: [sharedFromId], references: [id])
   shares       Post[]   @relation("SharedPosts")
   reports      Report[]
+  bookmarks    Bookmark[]
 }
 
 model Reaction {
@@ -89,12 +92,26 @@ model Message {
   text       String?
   fileUrl    String?
   fileName   String?
-  fileType   String?  // image, video, file
+  fileType   String?
   readAt     DateTime?
   createdAt  DateTime @default(now())
 
   sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  reactions  MessageReaction[]
+}
+
+model MessageReaction {
+  id        Int      @id @default(autoincrement())
+  messageId Int
+  userId    Int
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
 }
 
 model Notification {
@@ -111,6 +128,26 @@ model Notification {
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Bookmark {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  postId    Int
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+}
+
+model AdminLog {
+  id        Int      @id @default(autoincrement())
+  action    String   // ban_user, unban_user, delete_post, dismiss_report
+  targetId  Int
+  detail    String?
+  createdAt DateTime @default(now())
 }
 
 model Report {

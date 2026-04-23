@@ -48,6 +48,12 @@ export enum PacketCS {
     GET_USER_BY_ID          = 79,
     SEARCH_USERS            = 80,
     REPORT_POST             = 90,
+    BOOKMARK_POST           = 91,
+    UNBOOKMARK_POST         = 92,
+    GET_BOOKMARKS           = 93,
+    REACT_MESSAGE           = 94,
+    UNREACT_MESSAGE         = 95,
+    GET_BOOKMARK_IDS        = 96,
 }
 
 // Server → Client
@@ -107,4 +113,14 @@ export enum PacketSC {
 
     // Online status
     FRIEND_ONLINE   = 91,  // push: เพื่อนออนไลน์/ออฟไลน์
+
+    // Bookmark
+    BOOKMARK_LIST   = 92,
+    BOOKMARK_UPDATE = 93,
+
+    // Message reaction
+    MESSAGE_REACTION_UPDATE = 94,
+
+    // Bookmark IDs
+    BOOKMARK_IDS    = 95,
 }

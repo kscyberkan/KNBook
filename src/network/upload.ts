@@ -54,9 +54,15 @@ export async function handleUpload(req: Request): Promise<Response> {
         return Response.json({ error: 'No file provided' }, { status: 400 });
     }
 
+    // limit: รูป 10MB, วิดีโอ 100MB
+    const isImage = IMAGE_TYPES.has(file.type);
+    const isVideo = VIDEO_TYPES.has(file.type);
+    const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+        return Response.json({ error: `ไฟล์ใหญ่เกินไป (สูงสุด ${isVideo ? '100MB' : '10MB'})` }, { status: 413 });
+    }
+
     const mime    = file.type;
-    const isImage = IMAGE_TYPES.has(mime);
-    const isVideo = VIDEO_TYPES.has(mime);
 
     if (!isImage && !isVideo) {
         return Response.json({ error: 'Unsupported file type' }, { status: 415 });

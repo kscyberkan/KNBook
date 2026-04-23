@@ -2,7 +2,8 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import Feed from './Feed';
 import Profile from './Profile';
 import EditProfile from './EditProfile';
-import { MessageCircle, X, LogOut, User as UserIcon, ChevronDown, Home, Bell, Settings, Users } from "lucide-react";
+import Bookmarks from './Bookmarks';
+import { MessageCircle, X, LogOut, User as UserIcon, ChevronDown, Home, Bell, Settings, Users, Bookmark } from "lucide-react";
 import SearchBox from "../components/SearchBox";
 import { Global } from "../Global";
 import { type User } from "../types";
@@ -17,7 +18,7 @@ import { modal } from "../components/Modal";
 import { FriendsPanel } from "../components/FriendsPanel";
 import { PostModal } from "../components/PostModal";
 
-export type PageType = 'feed' | 'profile' | 'edit-profile';
+export type PageType = 'feed' | 'profile' | 'edit-profile' | 'bookmarks';
 
 type NotificationType = 'post' | 'reaction' | 'share' | 'comment' | 'message' | 'friend_request';
 
@@ -192,7 +193,7 @@ export default function PageManager() {
       });
     });
 
-    return () => { unsubNotifs(); unsubNew(); unsubFriends(); unsubAccepted(); };
+    return () => { unsubNotifs(); unsubNew(); unsubFriends(); unsubOnline(); unsubAccepted(); };
   }, []);
 
   const markAllRead = () => {
@@ -247,6 +248,8 @@ export default function PageManager() {
         return <Profile user={selectedUser} onEditClick={navigateToEditProfile} onSharePost={() => navigateToProfile(undefined)} onUserClick={navigateToProfile} />;
       case 'edit-profile':
         return <EditProfile onBack={() => setCurrentPage('profile')} />;
+      case 'bookmarks':
+        return <Bookmarks onUserClick={navigateToProfile} onBack={() => setCurrentPage('feed')} />;
       default:
         return <Feed onUserClick={navigateToProfile} onSharePost={() => navigateToProfile(undefined)} />;
     }
@@ -255,6 +258,7 @@ export default function PageManager() {
   const navItems = [
     { id: 'feed', icon: Home, label: 'หน้าแรก', onClick: () => setCurrentPage('feed') },
     { id: 'profile', icon: UserIcon, label: 'โปรไฟล์', onClick: () => navigateToProfile(undefined) },
+    { id: 'bookmarks', icon: Bookmark, label: 'บันทึก', onClick: () => setCurrentPage('bookmarks') },
   ];
 
   return (

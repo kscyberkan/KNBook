@@ -3,6 +3,7 @@ import type { Message } from '@prisma/client';
 
 export type MessageWithSender = Message & {
     sender: { id: number; name: string; profileImage: string | null };
+    reactions: { userId: number; emoji: string }[];
 };
 
 export async function createMessage(data: {
@@ -15,7 +16,10 @@ export async function createMessage(data: {
 }): Promise<MessageWithSender> {
     return prisma.message.create({
         data,
-        include: { sender: { select: { id: true, name: true, profileImage: true } } },
+        include: {
+            sender: { select: { id: true, name: true, profileImage: true } },
+            reactions: { select: { userId: true, emoji: true } },
+        },
     }) as Promise<MessageWithSender>;
 }
 
@@ -27,7 +31,10 @@ export async function getConversation(userAId: number, userBId: number, limit = 
                 { senderId: userBId, receiverId: userAId },
             ],
         },
-        include: { sender: { select: { id: true, name: true, profileImage: true } } },
+        include: {
+            sender: { select: { id: true, name: true, profileImage: true } },
+            reactions: { select: { userId: true, emoji: true } },
+        },
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,

@@ -18,6 +18,7 @@ interface Message {
   fileName?: string;
   fileType?: 'image' | 'video' | 'file';
   timestamp: string;
+  reactions?: { userId: number; emoji: string }[];
 }
 
 interface ChatWindowProps {
@@ -32,6 +33,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [msgEmojiPicker, setMsgEmojiPicker] = useState<string | null>(null); // messageId
   const [inputText, setInputText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);  const [lightbox, setLightbox] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
@@ -68,7 +70,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
       setOffset(prev => prev + 1);
     });
 
-    return () => { unsubList(); unsubNew(); };
+    const unsubReaction = net.on(PacketSC.MESSAGE_REACTION_UPDATE, (packet: Packet) => {
+      const { messageId, userId, emoji } = JSON.parse(packet.readString()) as { messageId: number; userId: number; emoji: string | null };
+      setMessages(prev => prev.map(m => {
+        if (m.id !== String(messageId)) return m;
+        const reactions = (m.reactions ?? []).filter(r => r.userId !== userId);
+        return { ...m, reactions: emoji ? [...reactions, { userId, emoji }] : reactions };
+      }));
+    });
+
+    return () => { unsubList(); unsubNew(); unsubReaction(); };
   }, [friend.id]);
 
   const shouldScrollRef = useRef(true);
@@ -196,7 +207,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
-                  className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}
+                  className={`flex items-end gap-2 relative group ${isMe ? 'justify-end' : 'justify-start'}`}
                 >
                   {!isMe && (
                     <img src={friend.profileImage} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0 mb-0.5" />
@@ -258,7 +269,48 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
                         return `${date} ${time}`;
                       })()}
                     </div>
+
+                    {/* Reactions */}
+                    {(msg.reactions?.length ?? 0) > 0 && (
+                      <div className={`flex gap-0.5 flex-wrap mt-0.5 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        {Object.entries(
+                          (msg.reactions ?? []).reduce((acc, r) => { acc[r.emoji] = (acc[r.emoji] ?? 0) + 1; return acc; }, {} as Record<string, number>)
+                        ).map(([emoji, count]) => (
+                          <button
+                            key={emoji}
+                            onClick={() => {
+                              const mine = msg.reactions?.find(r => r.userId === Number(Global.user.id) && r.emoji === emoji);
+                              mine ? net.unreactMessage(Number(msg.id)) : net.reactMessage(Number(msg.id), emoji);
+                            }}
+                            className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-full px-1.5 py-0.5 text-xs hover:bg-gray-50 transition-colors shadow-sm"
+                          >
+                            <span>{emoji}</span>
+                            {count > 1 && <span className="text-gray-500 text-[10px]">{count}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Emoji react button — hover */}
+                  <button
+                    onClick={() => setMsgEmojiPicker(msgEmojiPicker === msg.id ? null : msg.id)}
+                    className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-100 rounded-full text-gray-400 flex-shrink-0 self-center text-sm ${isMe ? 'order-first' : 'order-last'}`}
+                  >
+                    😊
+                  </button>
+
+                  {/* Mini emoji picker */}
+                  {msgEmojiPicker === msg.id && (
+                    <div className={`absolute ${isMe ? 'right-8' : 'left-8'} bottom-full mb-1 bg-white border border-gray-100 rounded-2xl shadow-xl px-2 py-1.5 flex gap-1 z-20`}>
+                      {['❤️','😂','😮','😢','👍','🔥'].map(e => (
+                        <button key={e} onClick={() => {
+                          net.reactMessage(Number(msg.id), e);
+                          setMsgEmojiPicker(null);
+                        }} className="text-lg hover:scale-125 transition-transform p-0.5">{e}</button>
+                      ))}
+                    </div>
+                  )}
                 </motion.div>
                 </React.Fragment>
               );

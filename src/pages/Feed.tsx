@@ -15,6 +15,7 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
     const [loading, setLoading] = React.useState(true);
     const [loadingMore, setLoadingMore] = React.useState(false);
     const [hasMore, setHasMore] = React.useState(true);
+    const [bookmarkedIds, setBookmarkedIds] = React.useState<Set<string>>(new Set());
     const offsetRef = useRef(0);
     const isFetchingRef = useRef(false);
 
@@ -69,6 +70,21 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
             offsetRef.current = Math.max(0, offsetRef.current - 1);
         });
 
+        const unsubBookmark = net.on(PacketSC.BOOKMARK_UPDATE, (packet: Packet) => {
+            const postId = String(packet.readInt());
+            const saved = packet.readBool();
+            setBookmarkedIds(prev => {
+                const next = new Set(prev);
+                saved ? next.add(postId) : next.delete(postId);
+                return next;
+            });
+        });
+
+        const unsubBookmarkIds = net.on(PacketSC.BOOKMARK_IDS, (packet: Packet) => {
+            const ids = JSON.parse(packet.readString()) as string[];
+            setBookmarkedIds(new Set(ids));
+        });
+
         const unsubResume = net.on(PacketSC.RESUME_OK, (packet: Packet) => {
             const userId = packet.readInt();
 
@@ -77,7 +93,8 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
         })
 
         net.getFeed(0);
-        return () => { unsubList(); unsubNew(); unsubReaction(); unsubComment(); unsubDel(); unsubResume(); };
+        net.getBookmarkIds();
+        return () => { unsubList(); unsubNew(); unsubReaction(); unsubComment(); unsubDel(); unsubBookmark(); unsubBookmarkIds(); unsubResume(); };
     }, []);
 
     const loadMore = useCallback(() => {
@@ -86,6 +103,19 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
         setLoadingMore(true);
         net.getFeed(offsetRef.current);
     }, [hasMore]);
+
+    // Intersection Observer — auto load more เมื่อ scroll ถึง sentinel
+    const sentinelRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const el = sentinelRef.current;
+        if (!el) return;
+        const observer = new IntersectionObserver(
+            entries => { if (entries[0]?.isIntersecting) loadMore(); },
+            { threshold: 0.1 }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [loadMore]);
 
     const handleNewPost = async (postData: {
         text: string;
@@ -163,6 +193,8 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
                                 onReact={(type) => handleReact(post.id, type)}
                                 onComment={(text, img, sticker, replyToId) => handleComment(post.id, text, img, sticker, replyToId)}
                                 onCommentUserClick={(u) => onUserClick?.(u)}
+                                initialBookmarked={bookmarkedIds.has(post.id)}
+                                onBookmark={(saved) => saved ? net.bookmarkPost(Number(post.id)) : net.unbookmarkPost(Number(post.id))}
                             />
                         );
                     })}
@@ -172,23 +204,17 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
                     )}
                 </div>
 
-                {/* Load more */}
-                <div className="py-6 flex justify-center">
-                    {loadingMore ? (
+                {/* Infinite scroll sentinel */}
+                <div ref={sentinelRef} className="py-6 flex justify-center">
+                    {loadingMore && (
                         <div className="flex items-center gap-2 text-gray-400 text-sm">
                             <div className="w-5 h-5 border-2 border-[#5B65F2]/30 border-t-[#5B65F2] rounded-full animate-spin" />
                             <span>กำลังโหลดเพิ่ม...</span>
                         </div>
-                    ) : hasMore ? (
-                        <button
-                            onClick={loadMore}
-                            className="px-6 py-2.5 bg-white border border-gray-200 hover:border-[#5B65F2]/40 hover:bg-[#5B65F2]/5 text-gray-600 hover:text-[#5B65F2] rounded-xl text-sm font-medium transition-all shadow-sm"
-                        >
-                            โหลดเพิ่ม
-                        </button>
-                    ) : posts.length > 0 ? (
+                    )}
+                    {!hasMore && posts.length > 0 && (
                         <p className="text-xs text-gray-300">— โพสต์ทั้งหมด {posts.length} รายการ —</p>
-                    ) : null}
+                    )}
                 </div>
             </div>
         </div>
