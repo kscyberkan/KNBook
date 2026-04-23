@@ -6,7 +6,9 @@ type Handler = (packet: Packet) => void;
 class NetworkClient {
     private ws: WebSocket | null = null;
     private handlers = new Map<number, Handler[]>();
-    private queue: Uint8Array[] = []; // packets รอส่งก่อน connect
+    private queue: Uint8Array[] = [];
+    private reconnectDelay = 1000;
+    private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
     connect(token?: string): void {
         const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -14,6 +16,7 @@ class NetworkClient {
         this.ws.binaryType = 'arraybuffer';
 
         this.ws.onopen = () => {
+            this.reconnectDelay = 1000; // reset backoff on success
             if (token) {
                 const p = new Packet(PacketCS.RESUME);
                 p.writeString(token);
@@ -65,8 +68,12 @@ class NetworkClient {
         };
 
         this.ws.onclose = () => {
-            // reconnect หลัง 3 วิ พร้อม token เดิม
-            setTimeout(() => this.connect(token), 3000);
+            // exponential backoff: 1s → 2s → 4s → 8s → max 30s
+            if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = setTimeout(() => {
+                this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30_000);
+                this.connect(token);
+            }, this.reconnectDelay);
         };
     }
 
@@ -298,6 +305,13 @@ class NetworkClient {
     searchUsers(query: string): void {
         const p = new Packet(PacketCS.SEARCH_USERS);
         p.writeString(query);
+        this.send(p);
+    }
+
+    reportPost(postId: number, reason: string): void {
+        const p = new Packet(PacketCS.REPORT_POST);
+        p.writeInt(postId);
+        p.writeString(reason);
         this.send(p);
     }
 

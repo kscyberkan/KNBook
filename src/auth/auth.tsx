@@ -35,17 +35,29 @@ function Auth(props: AuthProps) {
         const loginData = auth.getLoginData();
         net.connect(loginData ? loginData.token : undefined);
 
-        // ถูกเตะออกจากอุปกรณ์อื่น
-        const unsubForce = net.on(PacketSC.FORCE_LOGOUT, () => {
+        // ถูกเตะออกจากอุปกรณ์อื่น หรือถูกแบน
+        const unsubForce = net.on(PacketSC.FORCE_LOGOUT, (packet) => {
             auth.removeLoginData();
-            modal.warning('มีการเข้าสู่ระบบจากอุปกรณ์อื่น คุณถูกออกจากระบบแล้ว');
+            setData(false);
+            const msg = packet.readString?.() ?? '';
+            modal.warning(msg || 'มีการเข้าสู่ระบบจากอุปกรณ์อื่น คุณถูกออกจากระบบแล้ว');
+        });
+
+        // resume ถูก reject (token หมดอายุ หรือถูกแบน)
+        const unsubReject = net.on(PacketSC.REJECT_LOGIN, (packet) => {
+            const msg = packet.readString?.() ?? '';
+            if (msg.includes('ระงับ') || msg.includes('แบน')) {
+                auth.removeLoginData();
+                setData(false);
+                modal.warning(msg);
+            }
         });
 
         lineAuth.init().finally(() => {
             setIsInitializing(false);
         });
 
-        return () => { unsubForce(); };
+        return () => { unsubForce(); unsubReject(); };
     }, []);
 
     if (isInitializing) {

@@ -1,15 +1,18 @@
 import Packet from '@network/packet';
 import { PacketCS, PacketSC } from './packetList';
-import { registerSession, removeSession, getUserId, broadcast, sendToUser, type WS } from './session';
+import { registerSession, removeSession, getUserId, broadcast, sendToUser, sessions, type WS } from './session';
 import { getUserByUsername, getUserByToken, createUser, updateUser, getUserById } from '@/prisma/user';
 import { getFeedPosts, getPostsByUser, createPost, deletePost } from '@/prisma/post';
 import { upsertReaction, deleteReaction } from '@/prisma/reaction';
 import { createComment } from '@/prisma/comment';
 import prisma from '@/prisma/client';
 import { createMessage, getConversation, markMessagesRead } from '@/prisma/message';
-import { createNotification, getNotifications, markNotificationRead, markAllNotificationsRead, markNotificationHandled } from '@/prisma/notification';
-import { createDefaultAvatar } from '@/utils/defaultAvatar';
+import { createNotification, upsertNotification, getNotifications, markNotificationRead, markAllNotificationsRead, markNotificationHandled } from '@/prisma/notification';
+import { createReport } from '@/prisma/report';
+import { checkRateLimit } from './rateLimit';
 import { getFriendStatus, sendFriendRequest, acceptFriendRequest, removeFriend, getFriends, getPendingRequests, getSentRequests } from '@/prisma/friendship';
+import { createDefaultAvatar } from '@/utils/defaultAvatar';
+
 import * as bcrypt from 'bcryptjs';
 
 type Handler = (socket: WS, packet: Packet) => Promise<void>;
@@ -46,6 +49,7 @@ const handlers = new Map<number, Handler>([
     [PacketCS.GET_PENDING_REQUESTS,     recvGetPendingRequests],
     [PacketCS.GET_SENT_REQUESTS, recvGetSentRequests],
     [PacketCS.HANDLE_FRIEND_NOTIF, recvHandleFriendNotif],
+    [PacketCS.REPORT_POST, recvReportPost],
 ]);
 
 // ─── Packet Queue ────────────────────────────────────────────────────────────
@@ -71,8 +75,21 @@ export async function handler(socket: WS, packet: Packet): Promise<void> {
 }
 
 export function onDisconnect(socket: WS): void {
+    const userId = getUserId(socket);
     queues.delete(socket);
     removeSession(socket);
+    if (userId) broadcastOnlineStatus(userId, false);
+}
+
+/** broadcast online/offline status ให้เพื่อนทุกคนที่ online */
+async function broadcastOnlineStatus(userId: number, online: boolean): Promise<void> {
+    const friends = await getFriends(userId);
+    const p = new Packet(PacketSC.FRIEND_ONLINE);
+    p.writeInt(userId);
+    p.writeBool(online);
+    for (const f of friends) {
+        sendToUser(f.id, p.toBuffer());
+    }
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -137,6 +154,13 @@ async function recvLogin(socket: WS, packet: Packet): Promise<void> {
         return;
     }
 
+    if ((user as any).banned) {
+        const p = new Packet(PacketSC.REJECT_LOGIN);
+        p.writeString('บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
+        socket.send(p.toBuffer());
+        return;
+    }
+
     const token = crypto.randomUUID();
 
     // ถ้ายังไม่มีรูป สร้าง default avatar — ทำพร้อมกับ update token
@@ -147,6 +171,7 @@ async function recvLogin(socket: WS, packet: Packet): Promise<void> {
 
     await updateUser(user.id, { token, profileImage });
     registerSession(user.id, socket);
+    broadcastOnlineStatus(user.id, true);
 
     const p = new Packet(PacketSC.ACCEPT_LOGIN);
     p.writeInt(user.id);
@@ -224,7 +249,15 @@ async function recvResume(socket: WS, packet: Packet): Promise<void> {
         return;
     }
 
+    if ((user as any).banned) {
+        const p = new Packet(PacketSC.FORCE_LOGOUT);
+        p.writeString('บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
+        socket.send(p.toBuffer());
+        return;
+    }
+
     registerSession(user.id, socket);
+    broadcastOnlineStatus(user.id, true);
 
     const ok = new Packet(PacketSC.RESUME_OK);
     ok.writeInt(user.id);
@@ -261,6 +294,7 @@ async function recvGetUserPosts(socket: WS, packet: Packet): Promise<void> {
 async function recvCreatePost(socket: WS, packet: Packet): Promise<void> {
     const userId = requireAuth(socket);
     if (!userId) return;
+    if (!checkRateLimit(userId, 'post', 5, 60_000)) { sendError(socket, 'โพสต์เร็วเกินไป กรุณารอสักครู่'); return; }
 
     const text = packet.readString();
     const imageUrl = packet.readString();
@@ -302,6 +336,7 @@ async function recvDeletePost(socket: WS, packet: Packet): Promise<void> {
 async function recvReactPost(socket: WS, packet: Packet): Promise<void> {
     const userId = requireAuth(socket);
     if (!userId) return;
+    if (!checkRateLimit(userId, 'react', 30, 60_000)) return; // silent — reaction spam ไม่ต้องแจ้ง
 
     const postId = packet.readInt();
     const type = packet.readString();
@@ -314,7 +349,7 @@ async function recvReactPost(socket: WS, packet: Packet): Promise<void> {
         const { getUserById } = await import('@/prisma/user');
         const reactor = await getUserById(userId);
         if (reactor) {
-            const notif = await createNotification({
+            const notif = await upsertNotification({
                 userId: post.userId,
                 type: 'reaction',
                 fromName: reactor.name,
@@ -353,6 +388,7 @@ async function recvUnreactPost(socket: WS, packet: Packet): Promise<void> {
 async function recvCreateComment(socket: WS, packet: Packet): Promise<void> {
     const userId = requireAuth(socket);
     if (!userId) return;
+    if (!checkRateLimit(userId, 'comment', 10, 60_000)) { sendError(socket, 'คอมเมนต์เร็วเกินไป กรุณารอสักครู่'); return; }
 
     const postId     = packet.readInt();
     const text       = packet.readString();
@@ -390,7 +426,7 @@ async function recvCreateComment(socket: WS, packet: Packet): Promise<void> {
     const { getPostById } = await import('@/prisma/post');
     const post = await getPostById(postId);
     if (post && post.userId !== userId) {
-        const notif = await createNotification({
+        const notif = await upsertNotification({
             userId: post.userId,
             type: 'comment',
             fromName: comment.user.name,
@@ -657,7 +693,10 @@ async function recvGetFriends(socket: WS, _packet: Packet): Promise<void> {
     if (!userId) return;
     const friends = await getFriends(userId);
     const p = new Packet(PacketSC.FRIEND_LIST);
-    p.writeString(JSON.stringify(friends.map((f: any) => ({ ...f, id: String(f.id) }))));
+    p.writeString(JSON.stringify(friends.map((f: any) => ({
+        ...f, id: String(f.id),
+        online: sessions.has(f.id),
+    }))));
     socket.send(p.toBuffer());
 }
 
@@ -666,7 +705,10 @@ async function recvGetFriendsPanel(socket: WS, _packet: Packet): Promise<void> {
     if (!userId) return;
     const friends = await getFriends(userId);
     const p = new Packet(PacketSC.FRIEND_LIST_PANEL);
-    p.writeString(JSON.stringify(friends.map((f: any) => ({ ...f, id: String(f.id) }))));
+    p.writeString(JSON.stringify(friends.map((f: any) => ({
+        ...f, id: String(f.id),
+        online: sessions.has(f.id),
+    }))));
     socket.send(p.toBuffer());
 }
 
@@ -746,4 +788,17 @@ async function recvHandleFriendNotif(socket: WS, packet: Packet): Promise<void> 
     } else if (!accepted && fromId > 0) {
         await removeFriend(userId, fromId);
     }
+}
+
+async function recvReportPost(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const postId = packet.readInt();
+    const reason = packet.readString();
+
+    await createReport({ postId, userId, reason });
+
+    const p = new Packet(PacketSC.REPORT_OK);
+    socket.send(p.toBuffer());
 }

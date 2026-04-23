@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ThumbsUp, MessageCircle, Share2, Image as ImageIcon, StickyNote, Send, Heart, Laugh, Annoyed, Frown, Angry, MoreHorizontal, X, Reply } from 'lucide-react';
+import { ThumbsUp, MessageCircle, Share2, Image as ImageIcon, StickyNote, Send, Heart, Laugh, Annoyed, Frown, Angry, MoreHorizontal, X, Reply, Flag } from 'lucide-react';
 import { Global } from '../Global';
 import { VideoPlayer } from './VideoPlayer';
 import { type User, type Post, type Comment } from '../types';
@@ -258,6 +258,9 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   const [reactedUsers, setReactedUsers] = useState<Record<string, string[]>>(initialReactedUsers);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showPostMenu, setShowPostMenu] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportCustomText, setReportCustomText] = useState('');
   const [showLikedByPopup, setShowLikedByPopup] = useState(false);
   const [likedByPopupData, setLikedByPopupData] = useState<{ type: string; color: string; users: string[] }[]>([]);
   const [likedByPopupPosition, setLikedByPopupPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -475,10 +478,10 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                     </button>
                   )}
                   <button
-                    onClick={() => setShowPostMenu(false)}
+                    onClick={() => { setShowPostMenu(false); setShowReportModal(true); }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                   >
-                    รายงาน
+                    <Flag size={14} /> รายงาน
                   </button>
                 </motion.div>
               </>
@@ -700,6 +703,83 @@ export const FeedItem: React.FC<FeedItemProps> = ({
           <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-black/40" />
         </div>
       )}
+
+      {/* Report Modal */}
+      <AnimatePresence>
+        {showReportModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setShowReportModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <Flag size={18} className="text-red-500" />
+                <span className="font-bold text-gray-900">รายงานโพสต์</span>
+              </div>
+              <p className="text-sm text-gray-500 mb-3">เลือกเหตุผลที่รายงาน</p>
+              <div className="space-y-2 mb-4">
+                {['เนื้อหาไม่เหมาะสม', 'สแปมหรือโฆษณา', 'ข้อมูลเท็จ', 'การคุกคามหรือการกลั่นแกล้ง', 'อื่นๆ'].map(reason => (
+                  <button
+                    key={reason}
+                    onClick={() => setReportReason(reason)}
+                    className={`w-full text-left px-4 py-2.5 rounded-xl text-sm transition-colors border ${
+                      reportReason === reason
+                        ? 'bg-red-50 border-red-200 text-red-700 font-medium'
+                        : 'border-gray-100 hover:bg-gray-50 text-gray-700'
+                    }`}
+                  >
+                    {reason}
+                  </button>
+                ))}
+                {reportReason === 'อื่นๆ' && (
+                  <textarea
+                    autoFocus
+                    value={reportCustomText}
+                    onChange={e => setReportCustomText(e.target.value)}
+                    placeholder="ระบุเหตุผล..."
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm border border-red-200 rounded-xl bg-red-50/50 focus:outline-none focus:ring-2 focus:ring-red-200 resize-none text-gray-700 placeholder-gray-400"
+                  />
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowReportModal(false); setReportReason(''); setReportCustomText(''); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  disabled={!reportReason || (reportReason === 'อื่นๆ' && !reportCustomText.trim())}
+                  onClick={() => {
+                    if (postId && reportReason) {
+                      const finalReason = reportReason === 'อื่นๆ' ? `อื่นๆ: ${reportCustomText.trim()}` : reportReason;
+                      net.reportPost(Number(postId), finalReason);
+                      setShowReportModal(false);
+                      setReportReason('');
+                      setReportCustomText('');
+                      modal.alert('ส่งรายงานเรียบร้อยแล้ว ขอบคุณที่แจ้งให้เราทราบ');
+                    }
+                  }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ส่งรายงาน
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

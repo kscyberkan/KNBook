@@ -1,10 +1,12 @@
 import { serve } from 'bun';
 import index from './index.html';
+import adminIndex from './admin/index.html';
 import Packet from '@network/packet';
 import { handler, onDisconnect } from '@network/handler';
 import { handleUpload } from '@network/upload';
 import type { WS } from '@network/session';
 import { join } from 'path';
+import { handleAdminApi } from './admin/api';
 
 // suppress pg deprecation warning จาก @prisma/adapter-pg internals
 const _emitWarning = process.emitWarning.bind(process);
@@ -21,6 +23,13 @@ const server = serve({
             if (server.upgrade(req, { data: {} })) return;
             return new Response('WebSocket only', { status: 426 });
         },
+
+        // Admin API
+        '/api/admin/*': async (req) => handleAdminApi(req),
+
+        // Admin SPA
+        '/admin': adminIndex,
+        '/admin/*': adminIndex,
 
         // File upload
         '/api/upload': {

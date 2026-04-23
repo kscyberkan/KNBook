@@ -1,0 +1,219 @@
+/**
+ * Admin API handlers — ใช้ simple token auth ผ่าน header X-Admin-Token
+ * Token เก็บใน env ADMIN_TOKEN
+ */
+import prisma from '../prisma/client';
+import { sessions } from '../network/session';
+
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN ?? 'admin-secret';
+
+export function requireAdminAuth(req: Request): boolean {
+    const token = req.headers.get('x-admin-token');
+    return token === ADMIN_TOKEN;
+}
+
+function unauthorized() {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+    });
+}
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+
+export async function getStats() {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(todayStart); weekStart.setDate(todayStart.getDate() - 6);
+
+    const [totalUsers, newUsersToday, totalPosts, newPostsToday, totalReports, onlineCount,
+        dailyLogins, weeklyPosts] = await Promise.all([
+        prisma.user.count(),
+        prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
+        prisma.post.count(),
+        prisma.post.count({ where: { createdAt: { gte: todayStart } } }),
+        prisma.report.count({ where: { createdAt: { gte: todayStart } } }),
+        Promise.resolve(sessions.size),
+        // login activity ย้อนหลัง 7 วัน (นับจาก updatedAt ของ user)
+        prisma.$queryRaw<{ date: string; count: bigint }[]>`
+            SELECT DATE("updatedAt") as date, COUNT(*) as count
+            FROM "User"
+            WHERE "updatedAt" >= ${weekStart}
+            GROUP BY DATE("updatedAt")
+            ORDER BY date ASC
+        `,
+        // posts ย้อนหลัง 7 วัน
+        prisma.$queryRaw<{ date: string; count: bigint }[]>`
+            SELECT DATE("createdAt") as date, COUNT(*) as count
+            FROM "Post"
+            WHERE "createdAt" >= ${weekStart}
+            GROUP BY DATE("createdAt")
+            ORDER BY date ASC
+        `,
+    ]);
+
+    return Response.json({
+        totalUsers, newUsersToday, totalPosts, newPostsToday,
+        totalReports, onlineCount,
+        dailyLogins: dailyLogins.map(r => ({ date: r.date, count: Number(r.count) })),
+        weeklyPosts: weeklyPosts.map(r => ({ date: r.date, count: Number(r.count) })),
+    });
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+export async function getUsers(req: Request) {
+    const url = new URL(req.url);
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const search = url.searchParams.get('search') ?? '';
+    const limit = 20;
+
+    const where = search ? {
+        OR: [
+            { name: { contains: search, mode: 'insensitive' as const } },
+            { username: { contains: search, mode: 'insensitive' as const } },
+        ]
+    } : {};
+
+    const [users, total] = await Promise.all([
+        prisma.user.findMany({
+            where,
+            select: {
+                id: true, name: true, username: true, profileImage: true,
+                createdAt: true, banned: true,
+                _count: { select: { posts: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            skip: (page - 1) * limit,
+        }),
+        prisma.user.count({ where }),
+    ]);
+
+    return Response.json({ users, total, page, pages: Math.ceil(total / limit) });
+}
+
+export async function banUser(req: Request) {
+    const { userId, banned }: { userId: number; banned: boolean } = await req.json();
+    await prisma.user.update({ where: { id: userId }, data: { banned } });
+
+    // ถ้าแบน — เตะออกจาก session ทันทีด้วย FORCE_LOGOUT
+    if (banned) {
+        const { sessions } = await import('../network/session');
+        const { PacketSC } = await import('../network/packetList');
+        const Packet = (await import('../network/packet')).default;
+        const sock = sessions.get(userId);
+        if (sock) {
+            const p = new Packet(PacketSC.FORCE_LOGOUT);
+            p.writeString('บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
+            try { sock.send(p.toBuffer()); sock.close(); } catch { /* ignore */ }
+        }
+    }
+
+    return Response.json({ ok: true });
+}
+
+// ─── Posts ────────────────────────────────────────────────────────────────────
+
+export async function getPosts(req: Request) {
+    const url = new URL(req.url);
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const limit = 20;
+
+    const [posts, total] = await Promise.all([
+        prisma.post.findMany({
+            include: {
+                user: { select: { id: true, name: true, profileImage: true } },
+                _count: { select: { reactions: true, comments: true, reports: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            skip: (page - 1) * limit,
+        }),
+        prisma.post.count(),
+    ]);
+
+    return Response.json({ posts, total, page, pages: Math.ceil(total / limit) });
+}
+
+export async function getPostDetail(_req: Request, postId: number) {
+    const post = await prisma.post.findUnique({
+        where: { id: postId },
+        include: {
+            user: { select: { id: true, name: true, profileImage: true } },
+            reactions: { include: { user: { select: { name: true } } } },
+            comments: {
+                include: { user: { select: { id: true, name: true, profileImage: true } } },
+                orderBy: { createdAt: 'asc' },
+            },
+            reports: {
+                include: { user: { select: { id: true, name: true } } },
+                orderBy: { createdAt: 'desc' },
+            },
+            _count: { select: { reactions: true, comments: true, reports: true } },
+        },
+    });
+    if (!post) return new Response('Not found', { status: 404 });
+    return Response.json(post);
+}
+
+export async function adminDeletePost(req: Request) {
+    const { postId }: { postId: number } = await req.json();
+    await prisma.post.delete({ where: { id: postId } });
+    return Response.json({ ok: true });
+}
+
+// ─── Reports ─────────────────────────────────────────────────────────────────
+
+export async function getReports(req: Request) {
+    const url = new URL(req.url);
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const limit = 20;
+
+    const [reports, total] = await Promise.all([
+        prisma.report.findMany({
+            include: {
+                user: { select: { id: true, name: true, profileImage: true } },
+                post: {
+                    include: {
+                        user: { select: { id: true, name: true } },
+                        _count: { select: { reports: true } },
+                    }
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            skip: (page - 1) * limit,
+        }),
+        prisma.report.count(),
+    ]);
+
+    return Response.json({ reports, total, page, pages: Math.ceil(total / limit) });
+}
+
+export async function dismissReport(req: Request) {
+    const { reportId }: { reportId: number } = await req.json();
+    await prisma.report.delete({ where: { id: reportId } });
+    return Response.json({ ok: true });
+}
+
+// ─── Router ───────────────────────────────────────────────────────────────────
+
+export async function handleAdminApi(req: Request): Promise<Response> {
+    if (!requireAdminAuth(req)) return unauthorized();
+
+    const url = new URL(req.url);
+    const path = url.pathname.replace('/api/admin', '');
+    const method = req.method;
+
+    if (path === '/stats' && method === 'GET') return getStats();
+    if (path === '/users' && method === 'GET') return getUsers(req);
+    if (path === '/users/ban' && method === 'POST') return banUser(req);
+    if (path === '/posts' && method === 'GET') return getPosts(req);
+    if (path.match(/^\/posts\/\d+$/) && method === 'GET') return getPostDetail(req, Number(path.split('/')[2]));
+    if (path === '/posts/delete' && method === 'POST') return adminDeletePost(req);
+    if (path === '/reports' && method === 'GET') return getReports(req);
+    if (path === '/reports/dismiss' && method === 'POST') return dismissReport(req);
+
+    return new Response('Not found', { status: 404 });
+}

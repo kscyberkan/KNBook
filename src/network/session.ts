@@ -5,7 +5,7 @@ import Packet from './packet';
 export type WS = ServerWebSocket<{ userId?: number }>;
 
 // userId → socket
-const sessions = new Map<number, WS>();
+export const sessions = new Map<number, WS>();
 // socket → userId
 const socketUser = new Map<WS, number>();
 

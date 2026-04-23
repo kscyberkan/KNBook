@@ -110,14 +110,29 @@ export const CommentInput: React.FC<CommentInputProps> = ({
       {/* Image/Sticker preview */}
       <AnimatePresence>
         {(image || sticker) && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mb-2 relative inline-block">
-            <img src={image || sticker || ''} alt="preview" className="max-h-20 rounded-xl object-contain border border-gray-100" />
-            <button
-              onClick={() => { setImage(null); setImageFile(null); setSticker(null); }}
-              className="absolute -top-1 -right-1 bg-gray-800 text-white p-0.5 rounded-full"
-            >
-              <X size={10} />
-            </button>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mb-2 flex gap-2 flex-wrap">
+            {image && (
+              <div className="relative inline-block">
+                <img src={image} alt="preview" className="max-h-20 rounded-xl object-contain border border-gray-100" />
+                <button
+                  onClick={() => { setImage(null); setImageFile(null); }}
+                  className="absolute -top-1 -right-1 bg-gray-800 text-white p-0.5 rounded-full"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            )}
+            {sticker && (
+              <div className="relative inline-block">
+                <img src={sticker} alt="sticker preview" className="w-16 h-16 rounded-xl object-contain border border-gray-100 bg-gray-50" />
+                <button
+                  onClick={() => setSticker(null)}
+                  className="absolute -top-1 -right-1 bg-gray-800 text-white p-0.5 rounded-full"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -132,7 +147,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
             className="mb-2 p-2 bg-white border border-gray-100 rounded-2xl shadow-lg grid grid-cols-6 gap-1"
           >
             {STICKERS.map(url => (
-              <button key={url} onClick={() => { setSticker(url); setImage(null); setImageFile(null); setShowSticker(false); }}
+              <button key={url} onClick={() => { setSticker(url); setShowSticker(false); }}
                 className={`p-1 rounded-xl hover:bg-gray-100 transition-all hover:scale-110 ${sticker === url ? 'bg-[#5B65F2]/10 ring-1 ring-[#5B65F2]' : ''}`}>
                 <img src={url} className="w-10 h-10 object-contain" />
               </button>

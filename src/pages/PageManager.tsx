@@ -25,13 +25,41 @@ interface Notification {
   id: string;
   type: NotificationType;
   user: string;
+  users?: string[]; // สำหรับ grouped notifications
   avatar: string;
   message: string;
   time: string;
   read: boolean;
   fromId?: number;
   refId?: number;
-  friendHandled?: boolean; // ถูกรับ/ปฏิเสธแล้ว
+  friendHandled?: boolean;
+}
+
+/** ยุบ comment/reaction notifications ที่มี refId เดียวกันเป็นอันเดียว */
+function groupNotifications(notifs: Notification[]): Notification[] {
+  const result: Notification[] = [];
+  const grouped = new Map<string, Notification>(); // key = `type:refId`
+
+  for (const n of notifs) {
+    if ((n.type === 'comment' || n.type === 'reaction') && n.refId) {
+      const key = `${n.type}:${n.refId}`;
+      if (grouped.has(key)) {
+        const existing = grouped.get(key)!;
+        const users = existing.users ?? [existing.user];
+        if (!users.includes(n.user)) users.push(n.user);
+        existing.users = users;
+        existing.user = users[0]!;
+        // เก็บ id ของอันล่าสุด (newest = first in array since sorted desc)
+      } else {
+        const g = { ...n, users: [n.user] };
+        grouped.set(key, g);
+        result.push(g);
+      }
+    } else {
+      result.push(n);
+    }
+  }
+  return result;
 }
 
 const notificationIcon: Record<NotificationType, string> = {
@@ -93,7 +121,7 @@ export default function PageManager() {
         fromId: number | null; refId: number | null;
         message: string; read: boolean; handled: boolean; createdAt: string;
       }>;
-      setNotifications(data.map(n => ({
+      setNotifications(groupNotifications(data.map(n => ({
         id: String(n.id),
         type: n.type as NotificationType,
         user: n.fromName,
@@ -104,12 +132,18 @@ export default function PageManager() {
         fromId: n.fromId ?? undefined,
         refId: n.refId ?? undefined,
         friendHandled: n.handled,
-      })));
+      }))));
     });
 
     const unsubFriends = net.on(PacketSC.FRIEND_LIST, (packet: Packet) => {
-      const data = JSON.parse(packet.readString()) as { id: string; name: string; profileImage: string | null }[];
-      setFriends(data.map(f => ({ ...f, profileImage: f.profileImage ?? '', status: 'online' })));
+      const data = JSON.parse(packet.readString()) as { id: string; name: string; profileImage: string | null; online?: boolean }[];
+      setFriends(data.map(f => ({ ...f, profileImage: f.profileImage ?? '', status: f.online ? 'online' : 'offline' })));
+    });
+
+    const unsubOnline = net.on(PacketSC.FRIEND_ONLINE, (packet: Packet) => {
+      const userId = String(packet.readInt());
+      const online = packet.readBool();
+      setFriends(prev => prev.map(f => f.id === userId ? { ...f, status: online ? 'online' : 'offline' } : f));
     });
 
     // รับแจ้งเตือนเมื่อคำขอเพื่อนถูกยอมรับ — reload friends list
@@ -123,7 +157,7 @@ export default function PageManager() {
         id: number; type: string; fromName: string; fromImage: string | null;
         fromId: number | null; refId: number | null; message: string; createdAt: string;
       };
-      setNotifications(prev => [{
+      const newNotif: Notification = {
         id: String(n.id),
         type: n.type as NotificationType,
         user: n.fromName,
@@ -133,7 +167,29 @@ export default function PageManager() {
         read: false,
         fromId: n.fromId ?? undefined,
         refId: n.refId ?? undefined,
-      }, ...prev]);
+      };
+
+      setNotifications(prev => {
+        if ((newNotif.type === 'comment' || newNotif.type === 'reaction') && newNotif.refId) {
+          const idx = prev.findIndex(p => p.type === newNotif.type && p.refId === newNotif.refId);
+          if (idx !== -1) {
+            // merge เข้า group เดิม
+            const updated = [...prev];
+            const existing = { ...updated[idx] } as Notification;
+            const users = existing.users ?? [existing.user];
+            if (!users.includes(newNotif.user)) users.unshift(newNotif.user);
+            existing.users = users;
+            existing.user = users[0]!;
+            existing.read = false;
+            existing.time = 'เมื่อกี้';
+            existing.id = newNotif.id;
+            updated[idx] = existing;
+            updated.splice(idx, 1);
+            return [existing, ...updated] as Notification[];
+          }
+        }
+        return [{ ...newNotif, users: [newNotif.user] }, ...prev];
+      });
     });
 
     return () => { unsubNotifs(); unsubNew(); unsubFriends(); unsubAccepted(); };
@@ -305,7 +361,11 @@ export default function PageManager() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm text-gray-800 leading-snug">
-                                  <span className="font-semibold">{notif.user}</span>{' '}
+                                  <span className="font-semibold">
+                                    {notif.users && notif.users.length > 1
+                                      ? `${notif.users[0]} และอีก ${notif.users.length - 1} คน`
+                                      : notif.user}
+                                  </span>{' '}
                                   <span className="text-gray-600">{notif.message}</span>
                                 </p>
                                 <p className="text-[11px] text-[#5B65F2] mt-1 font-medium">{notif.time}</p>

@@ -13,6 +13,30 @@ export async function createNotification(data: {
     return prisma.notification.create({ data });
 }
 
+/** upsert — ถ้ามี notification ของ type+refId+fromId อยู่แล้วให้ update message และ reset read แทน */
+export async function upsertNotification(data: {
+    userId: number;
+    type: string;
+    fromName: string;
+    fromImage?: string;
+    fromId?: number;
+    refId?: number;
+    message: string;
+}): Promise<Notification> {
+    if (data.fromId && data.refId) {
+        const existing = await prisma.notification.findFirst({
+            where: { userId: data.userId, type: data.type, fromId: data.fromId, refId: data.refId },
+        });
+        if (existing) {
+            return prisma.notification.update({
+                where: { id: existing.id },
+                data: { message: data.message, fromName: data.fromName, fromImage: data.fromImage, read: false, createdAt: new Date() },
+            });
+        }
+    }
+    return prisma.notification.create({ data });
+}
+
 export async function getNotifications(userId: number, limit = 30): Promise<Notification[]> {
     return prisma.notification.findMany({
         where: { userId },

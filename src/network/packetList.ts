@@ -47,6 +47,7 @@ export enum PacketCS {
     HANDLE_FRIEND_NOTIF     = 78,
     GET_USER_BY_ID          = 79,
     SEARCH_USERS            = 80,
+    REPORT_POST             = 90,
 }
 
 // Server → Client
@@ -100,4 +101,10 @@ export enum PacketSC {
 
     // Force logout
     FORCE_LOGOUT    = 80,
+
+    // Report
+    REPORT_OK       = 90,
+
+    // Online status
+    FRIEND_ONLINE   = 91,  // push: เพื่อนออนไลน์/ออฟไลน์
 }
