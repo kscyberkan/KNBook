@@ -36,6 +36,10 @@ model User {
   messageReactions MessageReaction[]
   blockedBy        Block[]  @relation("BlockedBy")
   blocking         Block[]  @relation("Blocking")
+  groupsCreated    GroupChat[]    @relation("GroupCreator")
+  groupMembers     GroupMember[]
+  groupMessages    GroupMessage[]
+  groupMessageReactions GroupMessageReaction[]
 }
 
 model Post {
@@ -46,6 +50,7 @@ model Post {
   videoUrl   String?
   feeling    String?
   stickerUrl String?
+  groupName  String?
   isActive   Boolean    @default(true)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
@@ -192,4 +197,59 @@ model Block {
   blocked     User     @relation("Blocking", fields: [blockedId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedId])
+}
+
+model GroupChat {
+  id          Int       @id @default(autoincrement())
+  name        String
+  imageUrl    String?
+  createdById Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  createdBy   User          @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  members     GroupMember[]
+  messages    GroupMessage[]
+}
+
+model GroupMember {
+  id          Int       @id @default(autoincrement())
+  groupId     Int
+  userId      Int
+  role        String    @default("member") // member | admin
+  joinedAt    DateTime  @default(now())
+
+  group       GroupChat @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+model GroupMessage {
+  id          Int       @id @default(autoincrement())
+  groupId     Int
+  senderId    Int
+  text        String?
+  fileUrl     String?
+  fileName    String?
+  fileType    String?
+  isSystem    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  group       GroupChat @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sender      User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  reactions   GroupMessageReaction[]
+}
+
+model GroupMessageReaction {
+  id        Int      @id @default(autoincrement())
+  messageId Int
+  userId    Int
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message   GroupMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
 }

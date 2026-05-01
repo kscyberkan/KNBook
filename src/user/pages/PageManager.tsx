@@ -3,11 +3,13 @@ import Feed from './Feed';
 import Profile from './Profile';
 import EditProfile from './EditProfile';
 import Bookmarks from './Bookmarks';
-import { MessageCircle, X, LogOut, User as UserIcon, ChevronDown, Home, Bell, Settings, Users, Bookmark } from "lucide-react";
+import { MessageCircle, X, LogOut, User as UserIcon, ChevronDown, Home, Bell, Settings, Users, Bookmark, UserPlus } from "lucide-react";
 import SearchBox from "../components/SearchBox";
 import { Global } from "../Global";
 import { type User } from "../../types";
 import { ChatWindow } from "../components/ChatWindow";
+import { GroupChatWindow, type GroupChat } from "../components/GroupChatWindow";
+import { CreateGroupModal } from "../components/CreateGroupModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { lineAuth } from "../auth/line-auth";
 import { googleAuth } from "../auth/google-auth";
@@ -95,6 +97,10 @@ export default function PageManager() {
   const [showFriends, setShowFriends] = useState(false);
   const [friends, setFriends] = useState<(User & { status: string })[]>([]);
   const [activeChat, setActiveChat] = useState<User | null>(null);
+  const [groups, setGroups] = useState<GroupChat[]>([]);
+  const [activeGroup, setActiveGroup] = useState<GroupChat | null>(null);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [friendsTab, setFriendsTab] = useState<'dm' | 'group'>('dm');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -123,6 +129,7 @@ export default function PageManager() {
     // โหลด notifications จาก server
     net.getNotifications();
     net.getFriends();
+    net.getMyGroups();
 
     const unsubNotifs = net.on(PacketSC.NOTIFICATION_LIST, (packet: Packet) => {
       const data = JSON.parse(packet.readString()) as Array<{
@@ -239,7 +246,27 @@ export default function PageManager() {
       });
     });
 
-    return () => { unsubNotifs(); unsubNew(); unsubFriends(); unsubOnline(); unsubAccepted(); unsubUnread(); unsubCall(); unsubMsg(); };
+    const unsubMyGroups = net.on(PacketSC.MY_GROUPS, (packet: Packet) => {
+      setGroups(JSON.parse(packet.readString()) as GroupChat[]);
+    });
+
+    const unsubGroupCreated = net.on(PacketSC.GROUP_CREATED, (packet: Packet) => {
+      const g = JSON.parse(packet.readString()) as GroupChat;
+      setGroups(prev => [g, ...prev.filter(x => x.id !== g.id)]);
+    });
+
+    const unsubGroupUpdated = net.on(PacketSC.GROUP_UPDATED, (packet: Packet) => {
+      const { groupId, name } = JSON.parse(packet.readString()) as { groupId: string; name: string };
+      setGroups(prev => prev.map(g => g.id === groupId ? { ...g, name } : g));
+    });
+
+    const unsubGroupDeleted = net.on(PacketSC.GROUP_DELETED, (packet: Packet) => {
+      const { groupId } = JSON.parse(packet.readString()) as { groupId: string };
+      setGroups(prev => prev.filter(g => g.id !== groupId));
+      setActiveGroup(prev => prev?.id === groupId ? null : prev);
+    });
+
+    return () => { unsubNotifs(); unsubNew(); unsubFriends(); unsubOnline(); unsubAccepted(); unsubUnread(); unsubCall(); unsubMsg(); unsubMyGroups(); unsubGroupCreated(); unsubGroupUpdated(); unsubGroupDeleted(); };
   }, []);
 
   const markAllRead = () => {
@@ -312,9 +339,9 @@ export default function PageManager() {
   };
 
   const navItems = [
-    { id: 'feed', icon: Home, label: 'หน้าแรก', onClick: () => setCurrentPage('feed') },
-    { id: 'profile', icon: UserIcon, label: 'โปรไฟล์', onClick: () => navigateToProfile(undefined) },
-    { id: 'bookmarks', icon: Bookmark, label: 'บันทึก', onClick: () => setCurrentPage('bookmarks') },
+    { id: 'feed', icon: Home, label: t('nav.home'), onClick: () => setCurrentPage('feed') },
+    { id: 'profile', icon: UserIcon, label: t('nav.profile'), onClick: () => navigateToProfile(undefined) },
+    { id: 'bookmarks', icon: Bookmark, label: t('nav.bookmarkLabel'), onClick: () => setCurrentPage('bookmarks') },
   ];
 
   return (
@@ -389,10 +416,10 @@ export default function PageManager() {
                         className="absolute right-0 mt-3 w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-[70]"
                       >
                         <div className="flex items-center justify-between px-4 py-3.5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                          <span className="font-bold text-gray-900 text-sm">การแจ้งเตือน</span>
+                          <span className="font-bold text-gray-900 text-sm">{t('nav.notifications')}</span>
                           {unreadCount > 0 && (
                             <button onClick={markAllRead} className="text-xs text-[#5B65F2] hover:text-[#4a54e1] font-semibold transition-colors">
-                              อ่านทั้งหมด
+                              {t('nav.markAllRead')}
                             </button>
                           )}
                         </div>
@@ -437,7 +464,7 @@ export default function PageManager() {
                                 <p className="text-sm text-gray-800 leading-snug">
                                   <span className="font-semibold">
                                     {notif.users && notif.users.length > 1
-                                      ? `${notif.users[0]} และอีก ${notif.users.length - 1} คน`
+                                      ? `${notif.users[0]} ${t('nav.andMore').replace('{n}', String(notif.users.length - 1))}`
                                       : notif.user}
                                   </span>{' '}
                                   <span className="text-gray-600">{notif.message}</span>
@@ -454,18 +481,18 @@ export default function PageManager() {
                                       }}
                                       className="text-xs bg-[#5B65F2] hover:bg-[#4a54e1] text-white px-3 py-1.5 rounded-lg font-medium transition-colors"
                                     >
-                                      ยืนยัน
+                                      {t('friend.confirm')}
                                     </button>
                                     <button
                                       onClick={() => {
                                         net.handleFriendNotif(Number(notif.id), notif.fromId ?? 0, false);
                                         setNotifications(prev => prev.map(n =>
-                                          n.id === notif.id ? { ...n, friendHandled: true, read: true, message: 'ปฏิเสธคำขอแล้ว' } : n
+                                          n.id === notif.id ? { ...n, friendHandled: true, read: true, message: t('nav.friendDeclined') } : n
                                         ));
                                       }}
                                       className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg font-medium transition-colors"
                                     >
-                                      ปฏิเสธ
+                                      {t('friend.decline')}
                                     </button>
                                   </div>
                                 )}
@@ -541,7 +568,7 @@ export default function PageManager() {
                     >
                       <div className="px-4 py-3 border-b border-gray-50 mb-1 bg-gradient-to-r from-[#5B65F2]/5 to-transparent">
                         <div className="text-sm font-bold text-gray-900 truncate">{Global.user.name}</div>
-                        <div className="text-[11px] text-gray-400 mt-0.5">จัดการบัญชีของคุณ</div>
+                        <div className="text-[11px] text-gray-400 mt-0.5">{t('nav.manageAccount')}</div>
                       </div>
 
                       <button
@@ -554,7 +581,7 @@ export default function PageManager() {
                         <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
                           <UserIcon size={18} />
                         </div>
-                        <span className="font-medium text-gray-800">โปรไฟล์ของคุณ</span>
+                        <span className="font-medium text-gray-800">{t('nav.yourProfile')}</span>
                       </button>
 
                       <button
@@ -564,7 +591,7 @@ export default function PageManager() {
                         <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
                           <Settings size={18} />
                         </div>
-                        <span className="font-medium text-gray-800">ตั้งค่า/แก้ไขโปรไฟล์</span>
+                        <span className="font-medium text-gray-800">{t('nav.settingsEdit')}</span>
                       </button>
 
                       <button
@@ -577,7 +604,7 @@ export default function PageManager() {
                         <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-500">
                           <LogOut size={18} />
                         </div>
-                        <span className="font-medium">ออกจากระบบ</span>
+                        <span className="font-medium">{t('nav.logout')}</span>
                       </button>
                     </motion.div>
                   </>
@@ -627,41 +654,60 @@ export default function PageManager() {
       <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-[100] flex items-end">
         <div className="flex items-end mr-4">
           <AnimatePresence mode="wait">
-            {activeChat && (
+            {(activeChat || activeGroup) && (
               <motion.div
-                key="chat-window"
+                key={activeChat ? `chat-${activeChat.id}` : `group-${activeGroup!.id}`}
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
                 className="w-[calc(100vw-6rem)] sm:w-[320px] md:w-[360px] h-[450px] md:h-[500px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
               >
-                <ChatWindow
-                  friend={activeChat}
-                  onClose={() => setActiveChat(null)}
-                  onUserClick={(user) => {
-                    navigateToProfile(user);
-                    setActiveChat(null);
-                  }}
-                  onCall={async (callType) => {
-                    try {
-                      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' });
-                      setActiveCall({ friend: activeChat, callType, stream });
-                    } catch (err: any) {
-                      console.error('[Call] getUserMedia error:', err?.name, err?.message, err);
-                      const msg = err?.name === 'NotAllowedError'
-                        ? 'กรุณาอนุญาตการเข้าถึงกล้อง/ไมโครโฟนในการตั้งค่าเบราว์เซอร์'
-                        : err?.name === 'NotFoundError'
-                        ? 'ไม่พบกล้องหรือไมโครโฟน'
-                        : err?.name === 'NotReadableError'
-                        ? 'กล้องหรือไมโครโฟนถูกใช้งานโดยแอปอื่นอยู่'
-                        : err?.name === 'OverconstrainedError'
-                        ? 'กล้องไม่รองรับความละเอียดที่ต้องการ'
-                        : `ไม่สามารถเข้าถึงได้: ${err?.name} - ${err?.message ?? err}`;
-                      modal.error(msg);
-                    }
-                  }}
-                />
+                {activeChat ? (
+                  <ChatWindow
+                    friend={activeChat}
+                    onClose={() => setActiveChat(null)}
+                    onUserClick={(user) => {
+                      navigateToProfile(user);
+                      setActiveChat(null);
+                    }}
+                    onCall={async (callType) => {
+                      try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' });
+                        setActiveCall({ friend: activeChat, callType, stream });
+                      } catch (err: any) {
+                        console.error('[Call] getUserMedia error:', err?.name, err?.message, err);
+                        const msg = err?.name === 'NotAllowedError'
+                          ? t('media.permissionDenied')
+                          : err?.name === 'NotFoundError'
+                          ? t('media.notFound')
+                          : err?.name === 'NotReadableError'
+                          ? t('media.inUse')
+                          : err?.name === 'OverconstrainedError'
+                          ? t('media.notSupported')
+                          : `ไม่สามารถเข้าถึงได้: ${err?.name} - ${err?.message ?? err}`;
+                        modal.error(msg);
+                      }
+                    }}
+                  />
+                ) : activeGroup ? (
+                  <GroupChatWindow
+                    group={activeGroup}
+                    onClose={() => setActiveGroup(null)}
+                    onUserClick={(userId, name, profileImage) => {
+                      navigateToProfile({ id: userId, name, profileImage });
+                      setActiveGroup(null);
+                    }}
+                    onGroupUpdate={(g) => {
+                      setActiveGroup(g);
+                      setGroups(prev => prev.map(x => x.id === g.id ? g : x));
+                    }}
+                    onGroupDeleted={(gId) => {
+                      setGroups(prev => prev.filter(x => x.id !== gId));
+                      setActiveGroup(null);
+                    }}
+                  />
+                ) : null}
               </motion.div>
             )}
           </AnimatePresence>
@@ -676,62 +722,113 @@ export default function PageManager() {
                 transition={{ duration: 0.2, ease: "easeOut" }}
                 className="w-[calc(100vw-6rem)] sm:w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
               >
-                <div className="bg-gradient-to-r from-[#5B65F2] to-[#7B83F5] p-4 text-white font-bold flex justify-between items-center">
-                  <span className="text-sm">รายชื่อเพื่อน</span>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-xs font-normal opacity-80">ออนไลน์</span>
+                {/* Header with tabs */}
+                <div className="bg-gradient-to-r from-[#5B65F2] to-[#7B83F5] p-3 text-white">
+                  <div className="flex gap-1">
+                    <button onClick={() => setFriendsTab('dm')} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 ${friendsTab === 'dm' ? 'bg-white/20' : 'hover:bg-white/10'}`}>
+                      <MessageCircle size={13} /> {t('group.chat')}
+                    </button>
+                    <button onClick={() => setFriendsTab('group')} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 ${friendsTab === 'group' ? 'bg-white/20' : 'hover:bg-white/10'}`}>
+                      <Users size={13} /> {t('group.groupChat')}
+                    </button>
                   </div>
                 </div>
-                <div className="max-h-96 overflow-y-auto">
-                  {friends.length === 0 ? (
-                    <div className="p-8 text-center text-gray-400 text-sm">ยังไม่มีรายชื่อเพื่อน</div>
-                  ) : friends.map((friend) => (
-                    <div
-                      key={friend.id}
-                      onClick={() => {
-                        setActiveChat({ id: friend.id, name: friend.name, profileImage: friend.profileImage });
-                        setShowFriends(false);
-                        clearUnreadForUser(friend.id);
-                      }}
-                      className="flex items-center p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0"
-                    >
-                      <div className="relative">
-                        <img src={friend.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.name}`} alt={friend.name} className="w-10 h-10 rounded-full object-cover" />
-                        <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${friend.status === 'online' ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                        {(unreadPerUser[friend.id] ?? 0) > 0 && (
-                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white">
-                            {(unreadPerUser[friend.id] ?? 0) > 9 ? '9+' : unreadPerUser[friend.id]}
-                          </span>
-                        )}
-                      </div>
-                      <div className="ml-3 flex-1">
-                        <div className={`text-sm font-bold ${(unreadPerUser[friend.id] ?? 0) > 0 ? 'text-gray-900' : 'text-gray-800'}`}>{friend.name}</div>
-                        <div className="text-[10px] text-gray-500">
-                          {(unreadPerUser[friend.id] ?? 0) > 0
-                            ? <span className="text-red-500 font-medium">{unreadPerUser[friend.id]} ข้อความใหม่</span>
-                            : friend.status === 'online' ? 'ออนไลน์' : 'ออฟไลน์'}
+
+                {/* DM Tab */}
+                {friendsTab === 'dm' && (
+                  <div className="max-h-80 overflow-y-auto">
+                    {friends.length === 0 ? (
+                      <div className="p-8 text-center text-gray-400 text-sm">{t('friend.noFriends')}</div>
+                    ) : friends.map((friend) => (
+                      <div
+                        key={friend.id}
+                        onClick={() => {
+                          setActiveChat({ id: friend.id, name: friend.name, profileImage: friend.profileImage });
+                          setActiveGroup(null);
+                          setShowFriends(false);
+                          clearUnreadForUser(friend.id);
+                        }}
+                        className="flex items-center p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0"
+                      >
+                        <div className="relative">
+                          <img src={friend.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.name}`} alt={friend.name} className="w-10 h-10 rounded-full object-cover" />
+                          <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${friend.status === 'online' ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                          {(unreadPerUser[friend.id] ?? 0) > 0 && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white">
+                              {(unreadPerUser[friend.id] ?? 0) > 9 ? '9+' : unreadPerUser[friend.id]}
+                            </span>
+                          )}
                         </div>
+                        <div className="ml-3 flex-1">
+                          <div className={`text-sm font-bold ${(unreadPerUser[friend.id] ?? 0) > 0 ? 'text-gray-900' : 'text-gray-800'}`}>{friend.name}</div>
+                          <div className="text-[10px] text-gray-500">
+                            {(unreadPerUser[friend.id] ?? 0) > 0
+                              ? <span className="text-red-500 font-medium">{unreadPerUser[friend.id]} ข้อความใหม่</span>
+                              : friend.status === 'online' ? t('chat.online') : t('chat.offline')}
+                          </div>
+                        </div>
+                        <MessageCircle size={16} className={(unreadPerUser[friend.id] ?? 0) > 0 ? 'text-red-400' : 'text-gray-300'} />
                       </div>
-                      <MessageCircle size={16} className={(unreadPerUser[friend.id] ?? 0) > 0 ? 'text-red-400' : 'text-gray-300'} />
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Group Tab */}
+                {friendsTab === 'group' && (
+                  <div className="max-h-80 overflow-y-auto">
+                    <button
+                      onClick={() => { setShowCreateGroup(true); setShowFriends(false); }}
+                      className="w-full flex items-center gap-2 px-4 py-3 text-sm text-[#5B65F2] hover:bg-[#5B65F2]/5 border-b border-gray-100 font-semibold transition-colors"
+                    >
+                      <UserPlus size={15} /> สร้างกลุ่มใหม่
+                    </button>
+                    {groups.length === 0 ? (
+                      <div className="p-8 text-center text-gray-400 text-sm">ยังไม่มีกลุ่มแชท</div>
+                    ) : groups.map(g => (
+                      <div
+                        key={g.id}
+                        onClick={() => {
+                          setActiveGroup(g);
+                          setActiveChat(null);
+                          setShowFriends(false);
+                        }}
+                        className="flex items-center p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0"
+                      >
+                        {/* Group avatar stack */}
+                        <div className="relative w-10 h-10 flex-shrink-0">
+                          {g.members.slice(0, 3).map((m, i) => (
+                            <img
+                              key={m.userId}
+                              src={m.user.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.user.name}`}
+                              className="absolute w-6 h-6 rounded-full border-2 border-white object-cover"
+                              style={{ top: i * 4, left: i * 4 }}
+                            />
+                          ))}
+                        </div>
+                        <div className="ml-3 flex-1 min-w-0">
+                          <div className="text-sm font-bold text-gray-800 truncate">{g.name}</div>
+                          <div className="text-[10px] text-gray-400">{g.members.length} สมาชิก</div>
+                        </div>
+                        <Users size={14} className="text-gray-300 flex-shrink-0" />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
         <button
-          onClick={() => { activeChat ? setActiveChat(null) : setShowFriends(!showFriends); }}
+          onClick={() => { (activeChat || activeGroup) ? (setActiveChat(null), setActiveGroup(null)) : setShowFriends(!showFriends); }}
           className={`w-14 h-14 md:w-16 md:h-16 rounded-full shadow-xl flex items-center justify-center transition-all transform hover:scale-110 active:scale-95 flex-shrink-0 relative ${
-            showFriends || activeChat
+            showFriends || activeChat || activeGroup
               ? 'bg-gray-700 rotate-12'
               : 'bg-gradient-to-br from-[#5B65F2] to-[#7B83F5] shadow-[#5B65F2]/30'
           }`}
         >
-          {activeChat ? <X size={28} className="text-white" /> : <MessageCircle size={28} className="text-white" />}
-          {unreadMessages > 0 && !activeChat && (
+          {(activeChat || activeGroup) ? <X size={28} className="text-white" /> : <MessageCircle size={28} className="text-white" />}
+          {unreadMessages > 0 && !activeChat && !activeGroup && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
               {unreadMessages > 9 ? '9+' : unreadMessages}
             </span>
@@ -744,6 +841,16 @@ export default function PageManager() {
         onClose={() => setOpenPostId(null)}
         onUserClick={navigateToProfile}
       />
+
+      {/* Create Group Modal */}
+      <AnimatePresence>
+        {showCreateGroup && (
+          <CreateGroupModal
+            friends={friends.map(f => ({ id: f.id, name: f.name, profileImage: f.profileImage }))}
+            onClose={() => setShowCreateGroup(false)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Call UI */}
       <AnimatePresence>

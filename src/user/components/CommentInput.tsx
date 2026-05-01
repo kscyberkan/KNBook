@@ -4,6 +4,7 @@ import { type User, type Comment } from '../../types';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MentionInput } from './emoji/MentionInput';
 import { EmojiPicker } from './emoji/EmojiPicker';
+import { getEmojiChar } from './emoji/emojiList';
 
 interface CommentInputProps {
   currentUser: User;
@@ -18,12 +19,12 @@ interface CommentInputProps {
 }
 
 const STICKERS = [
-  '/stickers/sticker1.svg',
-  '/stickers/sticker2.svg',
-  '/stickers/sticker3.svg',
-  '/stickers/sticker4.svg',
-  '/stickers/sticker5.svg',
-  '/stickers/sticker6.svg',
+  '/media/0/stickers/sticker1.svg',
+  '/media/0/stickers/sticker2.svg',
+  '/media/0/stickers/sticker3.svg',
+  '/media/0/stickers/sticker4.svg',
+  '/media/0/stickers/sticker5.svg',
+  '/media/0/stickers/sticker6.svg',
 ];
 
 export const CommentInput: React.FC<CommentInputProps> = ({
@@ -45,6 +46,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
   const [showEmoji, setShowEmoji] = useState(false);
   const imageRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
 
   // set initialText และ focus เมื่อมีค่าใหม่
   React.useEffect(() => {
@@ -174,12 +176,19 @@ export const CommentInput: React.FC<CommentInputProps> = ({
           <div className="flex items-center gap-1 text-gray-400 ml-2 mb-0.5 relative">
             <div className="relative">
               <button
+                ref={emojiButtonRef}
                 onClick={() => { setShowEmoji(!showEmoji); setShowSticker(false); }}
                 className={`p-1 rounded-lg transition-colors ${showEmoji ? 'text-yellow-500 bg-yellow-50' : 'hover:text-yellow-500 hover:bg-yellow-50'}`}
               >
                 <Smile size={16} />
               </button>
-              <EmojiPicker open={showEmoji} onSelect={(id) => setText(prev => prev + `:${id}:`)} onClose={() => setShowEmoji(false)} />
+              <EmojiPicker
+                open={showEmoji}
+                onSelect={(id) => setText(prev => prev + (getEmojiChar(id) || `:${id}:`))}
+                onClose={() => setShowEmoji(false)}
+                placement="top"
+                anchorRef={emojiButtonRef as React.RefObject<HTMLElement | null>}
+              />
             </div>
             <button
               onClick={() => { setShowSticker(!showSticker); setShowEmoji(false); }}

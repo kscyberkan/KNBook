@@ -8,12 +8,18 @@ import { createComment } from '@/prisma/comment';
 import prisma from '@/prisma/client';
 import { createMessage, getConversation, markMessagesRead, getUnreadPerSender } from '@/prisma/message';
 import { createNotification, upsertNotification, getNotifications, markNotificationRead, markAllNotificationsRead, markNotificationHandled } from '@/prisma/notification';
+import {
+    createGroup, getGroupsByUser, getGroupById, updateGroupName, deleteGroup,
+    addGroupMember, removeGroupMember, isGroupMember, isGroupAdmin,
+    createGroupMessage, getGroupMessages, upsertGroupMessageReaction, deleteGroupMessageReaction,
+} from '@/prisma/group';
 import { createReport } from '@/prisma/report';
 import { addBookmark, removeBookmark, getBookmarks } from '@/prisma/bookmark';
 import { blockUser, unblockUser, getBlockedUsers } from '@/prisma/block';
 import { checkRateLimit } from './rateLimit';
 import { sanitizeText, sanitizeShort } from '@/utils/sanitize';
 import { getFriendStatus, sendFriendRequest, acceptFriendRequest, removeFriend, getFriends, getPendingRequests, getSentRequests } from '@/prisma/friendship';
+
 import { createDefaultAvatar } from '@/utils/defaultAvatar';
 
 import * as bcrypt from 'bcryptjs';
@@ -71,6 +77,19 @@ const handlers = new Map<number, Handler>([
     [PacketCS.CALL_END, recvCallEnd],
     [PacketCS.GET_UNREAD_MESSAGES, recvGetUnreadMessages],
     [PacketCS.UPDATE_LANG,         recvUpdateLang],
+
+    // Group Chat
+    [PacketCS.CREATE_GROUP,          recvCreateGroup],
+    [PacketCS.GET_MY_GROUPS,         recvGetMyGroups],
+    [PacketCS.SEND_GROUP_MESSAGE,    recvSendGroupMessage],
+    [PacketCS.GET_GROUP_MESSAGES,    recvGetGroupMessages],
+    [PacketCS.ADD_GROUP_MEMBER,      recvAddGroupMember],
+    [PacketCS.REMOVE_GROUP_MEMBER,   recvRemoveGroupMember],
+    [PacketCS.LEAVE_GROUP,           recvLeaveGroup],
+    [PacketCS.UPDATE_GROUP_NAME,     recvUpdateGroupName],
+    [PacketCS.DELETE_GROUP,          recvDeleteGroup],
+    [PacketCS.REACT_GROUP_MESSAGE,   recvReactGroupMessage],
+    [PacketCS.UNREACT_GROUP_MESSAGE, recvUnreactGroupMessage],
 ]);
 
 // ─── Packet Queue ────────────────────────────────────────────────────────────
@@ -342,6 +361,7 @@ async function recvCreatePost(socket: WS, packet: Packet): Promise<void> {
     const videoUrl = packet.readString();
     const feeling = packet.readString();
     const stickerUrl = packet.readString();
+    const groupName = packet.readString();
     const sharedFromId = packet.readInt();
 
     const post = await createPost({
@@ -351,6 +371,7 @@ async function recvCreatePost(socket: WS, packet: Packet): Promise<void> {
         videoUrl: videoUrl || undefined,
         feeling: sanitizeShort(feeling, 50) || undefined,
         stickerUrl: stickerUrl || undefined,
+        groupName: sanitizeShort(groupName, 50) || undefined,
         sharedFromId: sharedFromId > 0 ? sharedFromId : undefined,
     });
 
@@ -1073,4 +1094,257 @@ async function recvUpdateLang(socket: WS, packet: Packet): Promise<void> {
     const p = new Packet(PacketSC.LANG_UPDATED);
     p.writeString(lang);
     socket.send(p.toBuffer());
+}
+
+// ─── Group Chat ───────────────────────────────────────────────────────────────
+
+function normalizeGroupMsg(m: any) {
+    return {
+        ...m,
+        id: String(m.id),
+        groupId: String(m.groupId),
+        senderId: String(m.senderId),
+        sender: { ...m.sender, id: String(m.sender.id) },
+    };
+}
+
+async function broadcastToGroup(groupId: number, buf: Uint8Array, excludeUserId?: number): Promise<void> {
+    const group = await getGroupById(groupId);
+    if (!group) return;
+    for (const member of group.members) {
+        if (member.userId === excludeUserId) continue;
+        sendToUser(member.userId, buf);
+    }
+}
+
+async function recvCreateGroup(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const name = sanitizeShort(packet.readString(), 50);
+    const memberIdsRaw = packet.readString();
+    if (!name) { sendError(socket, 'Group name required'); return; }
+
+    let memberIds: number[] = [];
+    try { memberIds = JSON.parse(memberIdsRaw); } catch { memberIds = []; }
+
+    const group = await createGroup(name, userId, memberIds);
+
+    // ส่ง GROUP_CREATED ให้ทุก member
+    const p = new Packet(PacketSC.GROUP_CREATED);
+    p.writeString(JSON.stringify({
+        ...group,
+        id: String(group.id),
+        members: group.members.map(m => ({ ...m, userId: String(m.userId), user: { ...m.user, id: String(m.user.id) } })),
+    }));
+    for (const member of group.members) {
+        sendToUser(member.userId, p.toBuffer());
+    }
+}
+
+async function recvGetMyGroups(socket: WS, _packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const groups = await getGroupsByUser(userId);
+    const p = new Packet(PacketSC.MY_GROUPS);
+    p.writeString(JSON.stringify(groups.map(g => ({
+        ...g,
+        id: String(g.id),
+        members: g.members.map(m => ({ ...m, userId: String(m.userId), user: { ...m.user, id: String(m.user.id) } })),
+    }))));
+    socket.send(p.toBuffer());
+}
+
+async function recvSendGroupMessage(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const groupId = packet.readInt();
+    const text = packet.readString();
+    const fileUrl = packet.readString();
+    const fileName = packet.readString();
+    const fileType = packet.readString();
+
+    if (!await isGroupMember(groupId, userId)) { sendError(socket, 'Not a member'); return; }
+
+    const msg = await createGroupMessage({
+        groupId, senderId: userId,
+        text: sanitizeText(text) || undefined,
+        fileUrl: fileUrl || undefined,
+        fileName: fileName || undefined,
+        fileType: fileType || undefined,
+    });
+
+    const p = new Packet(PacketSC.NEW_GROUP_MESSAGE);
+    p.writeString(JSON.stringify(normalizeGroupMsg(msg)));
+    await broadcastToGroup(groupId, p.toBuffer());
+}
+
+async function recvGetGroupMessages(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const groupId = packet.readInt();
+    const offset = packet.readInt();
+
+    if (!await isGroupMember(groupId, userId)) { sendError(socket, 'Not a member'); return; }
+
+    const msgs = await getGroupMessages(groupId, 20, offset);
+    const p = new Packet(PacketSC.GROUP_MESSAGE_LIST);
+    p.writeString(JSON.stringify(msgs.map(normalizeGroupMsg)));
+    p.writeBool(msgs.length === 20);
+    p.writeInt(offset);
+    p.writeInt(groupId);
+    socket.send(p.toBuffer());
+}
+
+async function recvAddGroupMember(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const groupId = packet.readInt();
+    const targetId = packet.readInt();
+
+    if (!await isGroupAdmin(groupId, userId)) { sendError(socket, 'Not admin'); return; }
+
+    await addGroupMember(groupId, targetId);
+
+    const group = await getGroupById(groupId);
+    if (!group) return;
+
+    // system message
+    const { getUserById: getUser } = await import('@/prisma/user');
+    const adder = await getUser(userId);
+    const added = await getUser(targetId);
+    if (adder && added) {
+        const sysMsg = await createGroupMessage({ groupId, senderId: userId, text: `${adder.name} เพิ่ม ${added.name} เข้ากลุ่ม`, isSystem: true });
+        const sp = new Packet(PacketSC.NEW_GROUP_MESSAGE);
+        sp.writeString(JSON.stringify(normalizeGroupMsg(sysMsg)));
+        await broadcastToGroup(groupId, sp.toBuffer());
+    }
+
+    const p = new Packet(PacketSC.GROUP_MEMBER_UPDATE);
+    p.writeString(JSON.stringify({
+        groupId: String(groupId),
+        members: group.members.map(m => ({ ...m, userId: String(m.userId), user: { ...m.user, id: String(m.user.id) } })),
+    }));
+    await broadcastToGroup(groupId, p.toBuffer());
+}
+
+async function recvRemoveGroupMember(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const groupId = packet.readInt();
+    const targetId = packet.readInt();
+
+    if (!await isGroupAdmin(groupId, userId)) { sendError(socket, 'Not admin'); return; }
+
+    await removeGroupMember(groupId, targetId);
+
+    const group = await getGroupById(groupId);
+    if (!group) return;
+
+    const p = new Packet(PacketSC.GROUP_MEMBER_UPDATE);
+    p.writeString(JSON.stringify({
+        groupId: String(groupId),
+        members: group.members.map(m => ({ ...m, userId: String(m.userId), user: { ...m.user, id: String(m.user.id) } })),
+        removedUserId: String(targetId),
+    }));
+    await broadcastToGroup(groupId, p.toBuffer());
+    // แจ้งคนที่ถูกเอาออก
+    sendToUser(targetId, p.toBuffer());
+}
+
+async function recvLeaveGroup(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const groupId = packet.readInt();
+    if (!await isGroupMember(groupId, userId)) return;
+
+    const { getUserById: getUser } = await import('@/prisma/user');
+    const user = await getUser(userId);
+
+    await removeGroupMember(groupId, userId);
+
+    const group = await getGroupById(groupId);
+
+    if (user && group) {
+        const sysMsg = await createGroupMessage({ groupId, senderId: userId, text: `${user.name} ออกจากกลุ่ม`, isSystem: true });
+        const sp = new Packet(PacketSC.NEW_GROUP_MESSAGE);
+        sp.writeString(JSON.stringify(normalizeGroupMsg(sysMsg)));
+        await broadcastToGroup(groupId, sp.toBuffer());
+
+        const p = new Packet(PacketSC.GROUP_MEMBER_UPDATE);
+        p.writeString(JSON.stringify({
+            groupId: String(groupId),
+            members: group.members.map(m => ({ ...m, userId: String(m.userId), user: { ...m.user, id: String(m.user.id) } })),
+            removedUserId: String(userId),
+        }));
+        await broadcastToGroup(groupId, p.toBuffer());
+    }
+}
+
+async function recvUpdateGroupName(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const groupId = packet.readInt();
+    const name = sanitizeShort(packet.readString(), 50);
+    if (!name) { sendError(socket, 'Name required'); return; }
+    if (!await isGroupAdmin(groupId, userId)) { sendError(socket, 'Not admin'); return; }
+
+    await updateGroupName(groupId, name);
+
+    const p = new Packet(PacketSC.GROUP_UPDATED);
+    p.writeString(JSON.stringify({ groupId: String(groupId), name }));
+    await broadcastToGroup(groupId, p.toBuffer());
+}
+
+async function recvDeleteGroup(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const groupId = packet.readInt();
+    const group = await getGroupById(groupId);
+    if (!group) return;
+    if (group.createdById !== userId) { sendError(socket, 'Not owner'); return; }
+
+    const memberIds = group.members.map(m => m.userId);
+    await deleteGroup(groupId);
+
+    const p = new Packet(PacketSC.GROUP_DELETED);
+    p.writeString(JSON.stringify({ groupId: String(groupId) }));
+    for (const mid of memberIds) sendToUser(mid, p.toBuffer());
+}
+
+async function recvReactGroupMessage(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const messageId = packet.readInt();
+    const emoji = packet.readString();
+    const groupId = packet.readInt();
+
+    await upsertGroupMessageReaction(messageId, userId, emoji);
+
+    const p = new Packet(PacketSC.GROUP_REACTION_UPDATE);
+    p.writeString(JSON.stringify({ messageId: String(messageId), userId, emoji, groupId: String(groupId) }));
+    await broadcastToGroup(groupId, p.toBuffer());
+}
+
+async function recvUnreactGroupMessage(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const messageId = packet.readInt();
+    const groupId = packet.readInt();
+
+    await deleteGroupMessageReaction(messageId, userId);
+
+    const p = new Packet(PacketSC.GROUP_REACTION_UPDATE);
+    p.writeString(JSON.stringify({ messageId: String(messageId), userId, emoji: null, groupId: String(groupId) }));
+    await broadcastToGroup(groupId, p.toBuffer());
 }

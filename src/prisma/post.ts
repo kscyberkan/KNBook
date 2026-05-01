@@ -105,6 +105,7 @@ export async function createPost(data: {
     videoUrl?: string;
     feeling?: string;
     stickerUrl?: string;
+    groupName?: string;
     sharedFromId?: number;
 }): Promise<PostWithRelations> {
     const post = await prisma.post.create({

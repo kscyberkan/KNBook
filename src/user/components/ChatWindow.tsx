@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Paperclip, Image as ImageIcon, FileText, Film, ZoomIn } from 'lucide-react';
+import { X, Send, Paperclip, Image as ImageIcon, FileText, Film, ZoomIn, Smile } from 'lucide-react';
 import { type User } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VideoPlayer } from './VideoPlayer';
@@ -9,6 +9,7 @@ import { Global } from '../Global';
 import { EmojiPicker } from './emoji/EmojiPicker';
 import { EmojiText } from './emoji/EmojiText';
 import { EmojiTextarea } from './emoji/EmojiTextarea';
+import { getEmojiChar } from './emoji/emojiList';
 
 interface Message {
   id: string;
@@ -44,6 +45,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     net.getConversation(Number(friend.id), 0);
@@ -140,7 +142,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
   };
 
   return (
-    <div className="flex flex-col h-full bg-white overflow-hidden">
+    <div className="flex flex-col h-full bg-white overflow-visible">
       {/* Header */}
       <div className="bg-gradient-to-r from-[#5B65F2] to-[#7B83F5] px-4 py-3 text-white flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => onUserClick?.(friend)}>
@@ -410,18 +412,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
             />
             <div className="absolute right-2.5 bottom-2">
               <button
+                ref={emojiButtonRef}
                 onClick={() => { setShowEmoji(!showEmoji); setShowAttachMenu(false); }}
                 className={`transition-colors text-lg leading-none ${showEmoji ? 'opacity-100' : 'text-gray-400 hover:text-yellow-500'}`}
               >
-                😊
+                <Smile size={16} />
               </button>
               <EmojiPicker
                 open={showEmoji}
                 onSelect={(id) => {
-                  setInputText(prev => prev + `:${id}:`);
+                  const emojiChar = getEmojiChar(id) || `:${id}:`;
+                  setInputText(prev => prev + emojiChar);
                   setTimeout(() => textareaRef.current?.focus(), 0);
                 }}
                 onClose={() => setShowEmoji(false)}
+                placement="top"
+                anchorRef={emojiButtonRef as React.RefObject<HTMLElement | null>}
               />
             </div>
           </div>

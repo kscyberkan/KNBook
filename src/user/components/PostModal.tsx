@@ -64,6 +64,7 @@ export const PostModal: React.FC<PostModalProps> = ({ postId, onClose, onUserCli
                   postVideoUrl={post.videoUrl}
                   feeling={post.feeling}
                   stickerUrl={post.stickerUrl}
+                  groupName={post.groupName}
                   sharedPost={post.sharedPost}
                   initialReactionsCount={Object.fromEntries((post.reactions ?? []).map(r => [r.type, r.users.length]))}
                   initialReactedUsers={Object.fromEntries((post.reactions ?? []).map(r => [r.type, r.users]))}

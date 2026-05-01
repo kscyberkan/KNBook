@@ -143,6 +143,7 @@ class NetworkClient {
         videoFile?: File | null;
         feeling?: string | null;
         stickerUrl?: string | null;
+        groupName?: string | null;
         sharedFromId?: number;
     }): Promise<void> {
         let imageUrl = '';
@@ -157,6 +158,7 @@ class NetworkClient {
         p.writeString(videoUrl);
         p.writeString(data.feeling ?? '');
         p.writeString(data.stickerUrl ?? '');
+        p.writeString(data.groupName ?? '');
         p.writeInt(data.sharedFromId ?? 0);
         this.send(p);
     }
@@ -428,6 +430,96 @@ class NetworkClient {
     updateLang(lang: string): void {
         const p = new Packet(PacketCS.UPDATE_LANG);
         p.writeString(lang);
+        this.send(p);
+    }
+
+    // ─── Group Chat ───────────────────────────────────────────────────────────
+    createGroup(name: string, memberIds: number[]): void {
+        const p = new Packet(PacketCS.CREATE_GROUP);
+        p.writeString(name);
+        p.writeString(JSON.stringify(memberIds));
+        this.send(p);
+    }
+
+    getMyGroups(): void {
+        this.send(new Packet(PacketCS.GET_MY_GROUPS));
+    }
+
+    sendGroupMessage(groupId: number, data: { text?: string; file?: File; fileType?: 'image' | 'video' | 'file' }): void {
+        if (data.file) {
+            const source = data.fileType === 'image' ? 'post' : data.fileType === 'video' ? 'post' : 'post';
+            uploadFile(data.file, source).then(fileUrl => {
+                const p = new Packet(PacketCS.SEND_GROUP_MESSAGE);
+                p.writeInt(groupId);
+                p.writeString('');
+                p.writeString(fileUrl);
+                p.writeString(data.file!.name);
+                p.writeString(data.fileType ?? 'file');
+                this.send(p);
+            });
+            return;
+        }
+        const p = new Packet(PacketCS.SEND_GROUP_MESSAGE);
+        p.writeInt(groupId);
+        p.writeString(data.text ?? '');
+        p.writeString('');
+        p.writeString('');
+        p.writeString('');
+        this.send(p);
+    }
+
+    getGroupMessages(groupId: number, offset = 0): void {
+        const p = new Packet(PacketCS.GET_GROUP_MESSAGES);
+        p.writeInt(groupId);
+        p.writeInt(offset);
+        this.send(p);
+    }
+
+    addGroupMember(groupId: number, userId: number): void {
+        const p = new Packet(PacketCS.ADD_GROUP_MEMBER);
+        p.writeInt(groupId);
+        p.writeInt(userId);
+        this.send(p);
+    }
+
+    removeGroupMember(groupId: number, userId: number): void {
+        const p = new Packet(PacketCS.REMOVE_GROUP_MEMBER);
+        p.writeInt(groupId);
+        p.writeInt(userId);
+        this.send(p);
+    }
+
+    leaveGroup(groupId: number): void {
+        const p = new Packet(PacketCS.LEAVE_GROUP);
+        p.writeInt(groupId);
+        this.send(p);
+    }
+
+    updateGroupName(groupId: number, name: string): void {
+        const p = new Packet(PacketCS.UPDATE_GROUP_NAME);
+        p.writeInt(groupId);
+        p.writeString(name);
+        this.send(p);
+    }
+
+    deleteGroup(groupId: number): void {
+        const p = new Packet(PacketCS.DELETE_GROUP);
+        p.writeInt(groupId);
+        this.send(p);
+    }
+
+    reactGroupMessage(messageId: number, emoji: string, groupId: number): void {
+        const p = new Packet(PacketCS.REACT_GROUP_MESSAGE);
+        p.writeInt(messageId);
+        p.writeString(emoji);
+        p.writeInt(groupId);
+        this.send(p);
+    }
+
+    unreactGroupMessage(messageId: number, groupId: number): void {
+        const p = new Packet(PacketCS.UNREACT_GROUP_MESSAGE);
+        p.writeInt(messageId);
+        p.writeInt(groupId);
         this.send(p);
     }
 

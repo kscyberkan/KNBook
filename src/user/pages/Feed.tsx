@@ -1,14 +1,19 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useState } from "react";
 import { CreatePost } from "../components/CreatePost";
 import { FeedItem } from "../components/FeedItem";
 import { type Post, type User } from "../../types";
 import net, { PacketSC } from "../network/client";
 import Packet from "../network/packet";
+import { Users, Globe, LayoutGrid, ChevronDown, Search, Check, X } from "lucide-react";
+import { useDictionary } from "../../utils/dictionary";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface FeedProps {
     onUserClick?: (user: User) => void;
     onSharePost?: () => void;
 }
+
+type FeedFilter = 'all' | 'group' | 'general';
 
 function Feed({ onUserClick, onSharePost }: FeedProps) {
     const [posts, setPosts] = React.useState<Post[]>([]);
@@ -16,8 +21,26 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
     const [loadingMore, setLoadingMore] = React.useState(false);
     const [hasMore, setHasMore] = React.useState(true);
     const [bookmarkedIds, setBookmarkedIds] = React.useState<Set<string>>(new Set());
+    const [filter, setFilter] = useState<FeedFilter>('all');
+    const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [groupSearch, setGroupSearch] = useState('');
+    const dropdownRef = useRef<HTMLDivElement>(null);
     const offsetRef = useRef(0);
     const isFetchingRef = useRef(false);
+    const { t, tp } = useDictionary();
+
+    // ปิด dropdown เมื่อคลิกนอก
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+                setDropdownOpen(false);
+                setGroupSearch('');
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
 
     useEffect(() => {
         // subscribe ก่อน แล้วค่อย request
@@ -131,6 +154,7 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
         videoFile?: File | null;
         feeling: string | null;
         stickerUrl: string | null;
+        groupName?: string | null;
     }) => {
         await net.createPost({
             text: postData.text || undefined,
@@ -138,6 +162,7 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
             videoFile: postData.videoFile,
             feeling: postData.feeling,
             stickerUrl: postData.stickerUrl,
+            groupName: postData.groupName ?? undefined,
         });
     };
 
@@ -160,7 +185,7 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
             <div className="flex-1 flex items-center justify-center py-20">
                 <div className="flex flex-col items-center gap-3">
                     <div className="w-8 h-8 border-4 border-[#5B65F2]/30 border-t-[#5B65F2] rounded-full animate-spin" />
-                    <p className="text-sm text-gray-400">กำลังโหลด...</p>
+                    <p className="text-sm text-gray-400">{t('feed.loading')}</p>
                 </div>
             </div>
         );
@@ -171,8 +196,152 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
             <div className="max-w-[720px] mx-auto w-full py-4 md:py-6 px-3 md:px-4">
                 <CreatePost onPost={handleNewPost} />
 
+                {/* Filter Dropdown */}
+                {(() => {
+                    const groupNames = Array.from(
+                        new Set(posts.filter(p => !!p.groupName).map(p => p.groupName!))
+                    ).sort();
+                    const filteredGroups = groupNames.filter(n =>
+                        n.toLowerCase().includes(groupSearch.toLowerCase())
+                    );
+
+                    const filterOptions = [
+                        { key: 'all' as FeedFilter,     label: t('feed.all'),       icon: LayoutGrid },
+                        { key: 'general' as FeedFilter, label: t('feed.general'),   icon: Globe },
+                        { key: 'group' as FeedFilter,   label: t('feed.fromGroup'), icon: Users },
+                    ];
+
+                    const activeLabel = filter === 'group' && selectedGroup
+                        ? selectedGroup
+                        : filterOptions.find(o => o.key === filter)?.label ?? t('feed.all');
+                    const ActiveIcon = filter === 'group' ? Users : filterOptions.find(o => o.key === filter)?.icon ?? LayoutGrid;
+
+                    return (
+                        <div ref={dropdownRef} className="relative mb-4">
+                            {/* Trigger button */}
+                            <button
+                                onClick={() => { setDropdownOpen(v => !v); setGroupSearch(''); }}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl shadow-sm text-sm font-medium text-gray-700 hover:border-[#5B65F2]/50 hover:text-[#5B65F2] transition-all duration-150 min-w-[160px]"
+                            >
+                                <ActiveIcon size={15} className={filter !== 'all' ? 'text-[#5B65F2]' : 'text-gray-400'} />
+                                <span className="flex-1 text-left truncate">{activeLabel}</span>
+                                {filter !== 'all' && (
+                                    <span
+                                        role="button"
+                                        onClick={e => { e.stopPropagation(); setFilter('all'); setSelectedGroup(null); setDropdownOpen(false); }}
+                                        className="text-gray-300 hover:text-gray-500 transition-colors"
+                                    >
+                                        <X size={13} />
+                                    </span>
+                                )}
+                                <ChevronDown
+                                    size={14}
+                                    className={`text-gray-400 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}
+                                />
+                            </button>
+
+                            {/* Dropdown panel */}
+                            <AnimatePresence>
+                                {dropdownOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                                        transition={{ duration: 0.15, ease: 'easeOut' }}
+                                        className="absolute left-0 top-full mt-1.5 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-30"
+                                    >
+                                        {/* Main filter options */}
+                                        <div className="p-1.5 border-b border-gray-50">
+                                            {filterOptions.map(({ key, label, icon: Icon }) => (
+                                                <button
+                                                    key={key}
+                                                    onClick={() => {
+                                                        setFilter(key);
+                                                        setSelectedGroup(null);
+                                                        if (key !== 'group') { setDropdownOpen(false); setGroupSearch(''); }
+                                                    }}
+                                                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-colors ${
+                                                        filter === key && !selectedGroup
+                                                            ? 'bg-[#5B65F2]/8 text-[#5B65F2] font-medium'
+                                                            : 'text-gray-600 hover:bg-gray-50'
+                                                    }`}
+                                                >
+                                                    <Icon size={15} className={filter === key && !selectedGroup ? 'text-[#5B65F2]' : 'text-gray-400'} />
+                                                    <span className="flex-1 text-left">{label}</span>
+                                                    {filter === key && !selectedGroup && <Check size={13} className="text-[#5B65F2]" />}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Group list — แสดงเมื่อมีกลุ่ม */}
+                                        {groupNames.length > 0 && (
+                                            <div className="p-1.5">
+                                                {/* Search box */}
+                                                <div className="flex items-center gap-2 px-3 py-1.5 mb-1 bg-gray-50 rounded-xl">
+                                                    <Search size={13} className="text-gray-400 flex-shrink-0" />
+                                                    <input
+                                                        type="text"
+                                                        value={groupSearch}
+                                                        onChange={e => setGroupSearch(e.target.value)}
+                                                        placeholder={t('common.search') + '...'}
+                                                        className="flex-1 text-xs bg-transparent outline-none text-gray-700 placeholder-gray-400"
+                                                        onClick={e => e.stopPropagation()}
+                                                    />
+                                                    {groupSearch && (
+                                                        <button onClick={() => setGroupSearch('')} className="text-gray-300 hover:text-gray-500">
+                                                            <X size={11} />
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {/* Group items */}
+                                                <div className="max-h-48 overflow-y-auto">
+                                                    {filteredGroups.length === 0 ? (
+                                                        <p className="text-xs text-gray-400 text-center py-3">{t('common.noData')}</p>
+                                                    ) : (
+                                                        filteredGroups.map(name => (
+                                                            <button
+                                                                key={name}
+                                                                onClick={() => {
+                                                                    setFilter('group');
+                                                                    setSelectedGroup(prev => prev === name ? null : name);
+                                                                    setDropdownOpen(false);
+                                                                    setGroupSearch('');
+                                                                }}
+                                                                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-colors ${
+                                                                    selectedGroup === name
+                                                                        ? 'bg-[#5B65F2]/8 text-[#5B65F2] font-medium'
+                                                                        : 'text-gray-600 hover:bg-gray-50'
+                                                                }`}
+                                                            >
+                                                                <Users size={13} className={selectedGroup === name ? 'text-[#5B65F2]' : 'text-gray-400'} />
+                                                                <span className="flex-1 text-left truncate">{name}</span>
+                                                                {selectedGroup === name && <Check size={13} className="text-[#5B65F2]" />}
+                                                            </button>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    );
+                })()}
+
                 <div className="space-y-4 md:space-y-6">
-                    {posts.map((post) => {
+                    {posts
+                        .filter(post => {
+                            if (filter === 'group') {
+                                if (!post.groupName) return false;
+                                if (selectedGroup) return post.groupName === selectedGroup;
+                                return true;
+                            }
+                            if (filter === 'general') return !post.groupName;
+                            return true;
+                        })
+                        .map((post) => {
                         const reactionsCount: Record<string, number> = {};
                         const reactedUsers: Record<string, string[]> = {};
                         (post.reactions ?? []).forEach(r => {
@@ -191,6 +360,7 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
                                 postVideoUrl={post.videoUrl}
                                 feeling={post.feeling}
                                 stickerUrl={post.stickerUrl}
+                                groupName={post.groupName}
                                 sharedPost={post.sharedPost}
                                 initialReactionsCount={reactionsCount}
                                 initialReactedUsers={reactedUsers}
@@ -206,7 +376,24 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
                     })}
 
                     {posts.length === 0 && (
-                        <div className="text-center py-16 text-gray-400 text-sm">ยังไม่มีโพสต์</div>
+                        <div className="text-center py-16 text-gray-400 text-sm">{t('feed.noPosts')}</div>
+                    )}
+                    {posts.length > 0 && posts.filter(post => {
+                        if (filter === 'group') {
+                            if (!post.groupName) return false;
+                            if (selectedGroup) return post.groupName === selectedGroup;
+                            return true;
+                        }
+                        if (filter === 'general') return !post.groupName;
+                        return true;
+                    }).length === 0 && (
+                        <div className="text-center py-16 text-gray-400 text-sm">
+                            {filter === 'group'
+                                ? selectedGroup
+                                    ? tp('feed.noGroupPostsNamed', { name: selectedGroup })
+                                    : t('feed.noGroupPosts')
+                                : t('feed.noGeneralPosts')}
+                        </div>
                     )}
                 </div>
 
@@ -215,11 +402,11 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
                     {loadingMore && (
                         <div className="flex items-center gap-2 text-gray-400 text-sm">
                             <div className="w-5 h-5 border-2 border-[#5B65F2]/30 border-t-[#5B65F2] rounded-full animate-spin" />
-                            <span>กำลังโหลดเพิ่ม...</span>
+                            <span>{t('feed.loadingMore')}</span>
                         </div>
                     )}
                     {!hasMore && posts.length > 0 && (
-                        <p className="text-xs text-gray-300">— โพสต์ทั้งหมด {posts.length} รายการ —</p>
+                        <p className="text-xs text-gray-300">{tp('feed.allPostsCount', { n: posts.length })}</p>
                     )}
                 </div>
             </div>

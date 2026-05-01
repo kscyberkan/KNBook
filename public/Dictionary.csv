@@ -282,3 +282,61 @@ profile.postsCount,{n} โพสต์,{n} posts,{n} 条帖子,{n}件の投稿
 profile.postsSummary,— โพสต์ทั้งหมด {n} รายการ —,— {n} posts total —,— 共 {n} 条帖子 —,— {n} 件の投稿 —
 profile.coverAlt,รูปหน้าปก,Cover photo,封面照片,カバー写真
 profile.avatarAlt,รูปโปรไฟล์,Profile photo,头像,プロフィール写真
+profile.about,แนะนำตัวเอง,About,关于我,自己紹介
+profile.noBio,ยังไม่มีคำแนะนำตัว...,No bio yet...,暂无简介...,自己紹介がありません...
+profile.noPosts,ยังไม่มีโพสต์,No posts yet,暂无帖子,投稿がありません
+profile.yourPostsLabel,โพสต์ของคุณ,Your Posts,你的帖子,あなたの投稿
+profile.theirPostsLabel,โพสต์ของ {name},Posts by {name},{name} 的帖子,{name}の投稿
+profile.postsSummary,— โพสต์ทั้งหมด {n} รายการ —,— {n} posts total —,— 共 {n} 条帖子 —,— 合計 {n} 件の投稿 —
+profile.coverAlt,รูปหน้าปก,Cover photo,封面照片,カバー写真
+profile.avatarAlt,รูปโปรไฟล์,Profile photo,头像,プロフィール写真
+profile.joinedDateMissing,KN Book,KN Book,KN Book,KN Book
+common.months.january,มกราคม,January,一月,1月
+common.months.february,กุมภาพันธ์,February,二月,2月
+common.months.march,มีนาคม,March,三月,3月
+common.months.april,เมษายน,April,四月,4月
+common.months.may,พฤษภาคม,May,五月,5月
+common.months.june,มิถุนายน,June,六月,6月
+common.months.july,กรกฎาคม,July,七月,7月
+common.months.august,สิงหาคม,August,八月,8月
+common.months.september,กันยายน,September,九月,9月
+common.months.october,ตุลาคม,October,十月,10月
+common.months.november,พฤศจิกายน,November,十一月,11月
+common.months.december,ธันวาคม,December,十二月,12月
+feed.all,ทั้งหมด,All,全部,すべて
+feed.fromGroup,จากกลุ่ม,From Groups,来自群组,グループから
+feed.general,โพสต์ทั่วไป,General Posts,普通帖子,一般投稿
+feed.allGroups,ทุกกลุ่ม,All Groups,所有群组,すべてのグループ
+feed.noPosts,ยังไม่มีโพสต์,No posts yet,暂无帖子,投稿がありません
+feed.noGroupPosts,ไม่มีโพสต์จากกลุ่ม,No group posts,没有群组帖子,グループの投稿がありません
+feed.noGroupPostsNamed,ไม่มีโพสต์จากกลุ่ม "{name}",No posts from group "{name}",没有来自群组 "{name}" 的帖子,グループ「{name}」の投稿がありません
+feed.noGeneralPosts,ไม่มีโพสต์ทั่วไป,No general posts,没有普通帖子,一般投稿がありません
+feed.loading,กำลังโหลด...,Loading...,加载中...,読み込み中...
+feed.loadingMore,กำลังโหลดเพิ่ม...,Loading more...,加载更多...,さらに読み込み中...
+feed.allPostsCount,— โพสต์ทั้งหมด {n} รายการ —,— {n} posts total —,— 共 {n} 条帖子 —,— 合計 {n} 件の投稿 —
+group.groupName,ชื่อกลุ่ม,Group Name,群名称,グループ名
+group.groupNamePlaceholder,ตั้งชื่อกลุ่ม...,Name your group...,输入群名称...,グループ名を入力...
+group.addMembers,เพิ่มสมาชิก,Add Members,添加成员,メンバーを追加
+group.membersCount,{n} คน,{n} people,{n} 人,{n}人
+group.create,สร้างกลุ่ม,Create Group,创建群组,グループ作成
+group.newGroup,สร้างกลุ่มใหม่,New Group,新建群组,新しいグループ
+group.noGroups,ยังไม่มีกลุ่มแชท,No group chats yet,暂无群聊,グループチャットなし
+group.members,สมาชิก,Members,成员,メンバー
+group.membersWithCount,สมาชิก ({n}),Members ({n}),成员 ({n}),メンバー ({n})
+group.admin,Admin,Admin,管理员,管理者
+group.rename,เปลี่ยนชื่อกลุ่ม,Rename Group,修改群名称,グループ名変更
+group.leave,ออกจากกลุ่ม,Leave Group,退出群组,グループを退出
+group.leaveConfirm,ออกจากกลุ่มนี้?,Leave this group?,确认退出此群组？,このグループを退出しますか？
+group.delete,ลบกลุ่ม,Delete Group,删除群组,グループを削除
+group.deleteConfirm,ลบกลุ่มนี้? ข้อความทั้งหมดจะหายไป,Delete this group? All messages will be lost.,确认删除此群组？所有消息将丢失。,このグループを削除しますか？すべてのメッセージが失われます。
+group.kickConfirm,นำ {name} ออกจากกลุ่ม?,Remove {name} from group?,将 {name} 移出群组？,{name}をグループから削除しますか？
+group.chat,แชท,Chat,聊天,チャット
+group.groupChat,แชทกลุ่ม,Group Chat,群聊,グループチャット
+nav.manageAccount,จัดการบัญชีของคุณ,Manage your account,管理您的账号,アカウントを管理
+nav.yourProfile,โปรไฟล์ของคุณ,Your Profile,我的资料,あなたのプロフィール
+nav.settingsEdit,ตั้งค่า/แก้ไขโปรไฟล์,Settings / Edit Profile,设置/编辑资料,設定/プロフィール編集
+nav.markAllRead,อ่านทั้งหมด,Mark all read,全部已读,すべて既読
+nav.andMore,และอีก {n} คน,and {n} more,还有 {n} 人,他 {n} 人
+nav.friendConfirmed,ยืนยันคำขอเป็นเพื่อนแล้ว,Friend request confirmed,已确认好友请求,友達リクエストを承認しました
+nav.friendDeclined,ปฏิเสธคำขอแล้ว,Friend request declined,已拒绝好友请求,友達リクエストを拒否しました
+nav.logoutConfirm,คุณต้องการออกจากระบบใช่หรือไม่?,Are you sure you want to logout?,确认退出登录？,ログアウトしますか？

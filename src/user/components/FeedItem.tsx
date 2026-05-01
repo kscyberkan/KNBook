@@ -1,14 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ThumbsUp, MessageCircle, Share2, Image as ImageIcon, StickyNote, Send, Heart, Laugh, Annoyed, Frown, Angry, MoreHorizontal, X, Reply, Flag, Bookmark } from 'lucide-react';
+import { ThumbsUp, MessageCircle, Share2, Image as ImageIcon, StickyNote, Send, Heart, Laugh, Annoyed, Frown, Angry, MoreHorizontal, X, Reply, Flag, Bookmark, Users } from 'lucide-react';
 import { Global } from '../Global';
 import { VideoPlayer } from './VideoPlayer';
 import { type User, type Post, type Comment } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import net, { PacketSC } from '../network/client';
 import Packet from '../network/packet';
-import { EmojiPicker } from './emoji/EmojiPicker';
 import { EmojiText } from './emoji/EmojiText';
-import { MentionInput } from './emoji/MentionInput';
 import { CommentInput } from './CommentInput';
 import { modal } from '../../components/Modal';
 import { useDictionary } from '../../utils/dictionary';
@@ -31,6 +29,7 @@ interface FeedItemProps {
   onShare?: () => void;
   onBookmark?: (bookmarked: boolean) => void;
   initialBookmarked?: boolean;
+  groupName?: string;
   onReact?: (type: string | null) => void;
   onComment?: (text: string, imageUrl?: string, stickerUrl?: string, replyToId?: string) => void;
   onCommentUserClick?: (user: User) => void;
@@ -256,6 +255,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   postVideoUrl,
   feeling,
   stickerUrl,
+  groupName,
   initialReactionsCount = {},
   initialReactedUsers = {},
   initialComments,
@@ -476,7 +476,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
       initial={disableAnimation ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-4 hover:shadow-md transition-shadow duration-300"
+      className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible mb-4 hover:shadow-md transition-shadow duration-300"
     >
       {/* Post Header */}
       <div className="p-4 flex items-center justify-between">
@@ -488,13 +488,19 @@ export const FeedItem: React.FC<FeedItemProps> = ({
             <img src={user.profileImage} alt={user.name} className="w-full h-full object-cover" />
           </div>
           <div>
-            <div className="flex items-center flex-wrap gap-x-1.5">
+            <div className="flex items-center flex-wrap gap-2">
               <span
                 className="font-bold text-gray-900 cursor-pointer hover:text-[#5B65F2] transition-colors text-[15px]"
                 onClick={onUserClick}
               >
                 {user.name}
               </span>
+              {groupName && (
+                <span className="inline-flex items-center gap-1 text-xs rounded-full bg-[#eff6ff] px-2 py-0.5 text-[#2563eb] font-semibold border border-[#bfdbfe]">
+                  <Users size={11} />
+                  {groupName}
+                </span>
+              )}
               {feeling && (
                 <span className="text-gray-400 text-sm">
                   {t('post.feeling')} <span className="text-gray-600 font-medium">{feeling}</span>

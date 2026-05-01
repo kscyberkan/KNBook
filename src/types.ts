@@ -34,6 +34,7 @@ export interface Post {
   videoUrl?: string;
   feeling?: string;
   stickerUrl?: string;
+  groupName?: string;
   reactions: ReactionData[];
   comments?: Comment[];
   createdAt: string;

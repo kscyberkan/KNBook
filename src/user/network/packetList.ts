@@ -68,6 +68,19 @@ export enum PacketCS {
 
     GET_UNREAD_MESSAGES     = 104,
     UPDATE_LANG             = 105,
+
+    // Group Chat
+    CREATE_GROUP            = 110,
+    GET_MY_GROUPS           = 111,
+    SEND_GROUP_MESSAGE      = 112,
+    GET_GROUP_MESSAGES      = 113,
+    ADD_GROUP_MEMBER        = 114,
+    REMOVE_GROUP_MEMBER     = 115,
+    LEAVE_GROUP             = 116,
+    UPDATE_GROUP_NAME       = 117,
+    DELETE_GROUP            = 118,
+    REACT_GROUP_MESSAGE     = 119,
+    UNREACT_GROUP_MESSAGE   = 120,
 }
 
 // Server → Client
@@ -154,4 +167,14 @@ export enum PacketSC {
 
     UNREAD_MESSAGES = 105,
     LANG_UPDATED    = 106,
+
+    // Group Chat
+    MY_GROUPS               = 110,
+    GROUP_CREATED           = 111,
+    GROUP_MESSAGE_LIST      = 112,
+    NEW_GROUP_MESSAGE       = 113,
+    GROUP_MEMBER_UPDATE     = 114,
+    GROUP_UPDATED           = 115,
+    GROUP_DELETED           = 116,
+    GROUP_REACTION_UPDATE   = 117,
 }

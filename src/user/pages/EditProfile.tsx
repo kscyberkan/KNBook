@@ -14,7 +14,7 @@ interface EditProfileProps {
 
 const LANGS: { value: Lang; label: string; flag: string }[] = [
   { value: 'th', label: 'ไทย',     flag: '🇹🇭' },
-  { value: 'en', label: 'EN',     flag: '🇺🇸' },
+  { value: 'en', label: 'EN',     flag: 'EN' },
   { value: 'cn', label: '中文',     flag: '🇨🇳' },
   { value: 'jp', label: '日本語',   flag: '🇯🇵' },
 ];
