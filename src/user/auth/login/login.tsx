@@ -9,12 +9,14 @@ import Button from '../../components/button';
 import { lineAuth } from '../line-auth';
 import { useGoogleLogin } from '@react-oauth/google';
 import { googleAuth } from '../google-auth';
+import { useDictionary } from '../../../utils/dictionary';
 
 export default function Login() {
     const username = useRef<HTMLInputElement>(null);
     const password = useRef<HTMLInputElement>(null);
     const [isLineLoading, setIsLineLoading] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+    const { t } = useDictionary();
 
     const googleLogin = useGoogleLogin({
         onSuccess: (tokenResponse) => {
@@ -55,10 +57,10 @@ export default function Login() {
                         KN
                     </div>
                     <h2 className="text-3xl font-bold text-gray-900">
-                        เข้าสู่ระบบ
+                        {t('auth.login')}
                     </h2>
                     <p className="text-gray-500 mt-2 text-center">
-                        ยินดีต้อนรับกลับเข้าสู่ KN Book
+                        {t('auth.welcome')}
                     </p>
                 </div>
 
@@ -68,21 +70,21 @@ export default function Login() {
                         e.target.value = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
                     }}
                         maxLength={16}
-                        label='Username' placeholder='ชื่อผู้ใช้' />
+                        label={t('auth.username')} placeholder={t('auth.username')} />
                     <InputField.Default ref={password} type='password' onChange={(e) => {
                         e.target.value = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
                     }}
                         maxLength={16}
-                        label='Password' placeholder='รหัสผ่าน' />
+                        label={t('auth.password')} placeholder={t('auth.password')} />
                 </div>
 
                 <div className="mt-8">
-                    <Button.Default label="เข้าสู่ระบบ" onClick={handleLogin} />
+                    <Button.Default label={t('auth.login')} onClick={handleLogin} />
                 </div>
 
                 <div className="mt-6 flex items-center space-x-3">
                     <div className="flex-1 h-[1px] bg-gray-100"></div>
-                    <span className="text-xs text-gray-400 font-medium">หรือเข้าสู่ระบบด้วย</span>
+                    <span className="text-xs text-gray-400 font-medium">{t('auth.orLoginWith')}</span>
                     <div className="flex-1 h-[1px] bg-gray-100"></div>
                 </div>
 
@@ -114,7 +116,7 @@ export default function Login() {
                                 </text>
                             </svg>
                         )}
-                        <span className="text-sm font-bold">{isLineLoading ? 'กำลังโหลด...' : 'LINE'}</span>
+                        <span className="text-sm font-bold">{isLineLoading ? t('common.loading') : 'LINE'}</span>
                     </button>
                     <button
                         onClick={() => {
@@ -134,25 +136,25 @@ export default function Login() {
                                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 12-4.53z" fill="#EA4335" />
                             </svg>
                         )}
-                        <span className="text-sm font-bold">{isGoogleLoading ? 'กำลังโหลด...' : 'Google'}</span>
+                        <span className="text-sm font-bold">{isGoogleLoading ? t('common.loading') : 'Google'}</span>
                     </button>
                 </div>
 
                 <div className="mt-8 pt-6 border-t border-[var(--border)] text-center">
                     <p className="text-sm text-gray-600">
-                        ยังไม่มีบัญชีผู้ใช้?{' '}
+                        {t('auth.noAccount')}{' '}
                         <span
                             onClick={() => authFunction.setAuthMode('register')}
                             className="cursor-pointer text-[var(--primary)] font-bold hover:underline"
                         >
-                            สร้างบัญชีใหม่
+                            {t('auth.createAccount')}
                         </span>
                     </p>
                 </div>
             </motion.div>
 
             <p className="mt-8 text-gray-400 text-xs">
-                © 2026 KN Book. All rights reserved.
+                {t('common.copyright')}
             </p>
         </div>
     );

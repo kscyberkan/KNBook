@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Global } from '../Global';
+import { normalizeProvince } from '../constants/th-provinces';
 import { MapPin, Calendar, Edit2, Camera, Grid3X3, BookOpen } from 'lucide-react';
 import { FeedItem } from '../components/FeedItem';
 import { type Post, type User } from '../../types';
@@ -9,6 +10,21 @@ import Packet from '../network/packet';
 import { modal } from '../../components/Modal';
 import { FriendButton } from '../components/FriendButton';
 import { updateStoredField } from '../auth/function';
+import { type Lang, useDictionary } from '../../utils/dictionary';
+
+const MONTH_KEYS = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december',
+] as const;
+
+function formatMonthYear(dateString: string, lang: Lang, t: (key: string) => string): string {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+  const monthKey = `common.months.${MONTH_KEYS[date.getMonth()]}`;
+  const month = t(monthKey);
+  const year = date.getFullYear() + (lang === 'th' ? 543 : 0);
+  return `${month} ${year}`;
+}
 
 interface ProfileProps {
   user?: User;
@@ -22,6 +38,7 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
   const coverInputRef = useRef<HTMLInputElement>(null);
   const displayUser: User = user || Global.user;
   const isMe = displayUser.id === Global.user.id;
+  const { t, tp, lang } = useDictionary();
 
   const [posts, setPosts] = React.useState<Post[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -119,9 +136,9 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
         setProfileImage(url);
         Global.user.profileImage = url;
         updateStoredField({ profileImage: url });
-        modal.success('อัปเดตรูปโปรไฟล์เรียบร้อยแล้ว');
+        modal.success(t('profile.uploadSuccess'));
       })
-      .catch(() => modal.error('อัปโหลดรูปไม่สำเร็จ'));
+      .catch(() => modal.error(t('profile.uploadError')));
   };
 
   const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,9 +152,9 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
         setCoverImage(url);
         Global.user.coverImage = url;
         updateStoredField({ coverImage: url });
-        modal.success('อัปเดตรูปหน้าปกเรียบร้อยแล้ว');
+        modal.success(t('profile.coverSuccess'));
       })
-      .catch(() => modal.error('อัปโหลดรูปไม่สำเร็จ'));
+      .catch(() => modal.error(t('profile.uploadError')));
   };
 
   const handleShare = async (originalPost: Post) => {
@@ -155,16 +172,16 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
   };
 
   const stats = [
-    { label: 'โพสต์', value: posts.length },
-    { label: 'เพื่อน', value: '—' },
+    { label: t('profile.posts'), value: posts.length },
+    { label: t('profile.friends'), value: '—' },
   ];
 
   const avatarSrc = profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${displayUser.name}`;
+  const provinceName = normalizeProvince(displayUser.province);
 
   const joinedDate = displayUser.createdAt
-    ? new Date(displayUser.createdAt).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
-    : 'KN Book';
-
+    ? formatMonthYear(displayUser.createdAt, lang, t)
+    : t('profile.joinedDateMissing');
   return (
     <div className="flex-1 bg-[#F0F2F5]">
       <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
@@ -174,14 +191,14 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
       <div className="bg-white shadow-sm">
         <div className="max-w-5xl mx-auto">
           <div className="h-52 md:h-72 relative overflow-hidden group">
-            <img src={coverImage || "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=2070&auto=format&fit=crop"} alt="Cover" className="w-full h-full object-cover" />
+            <img src={coverImage || "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=2070&auto=format&fit=crop"} alt={t('profile.coverAlt')} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
             {isMe && (
               <button
                 onClick={() => coverInputRef.current?.click()}
                 className="absolute top-4 right-4 flex items-center gap-2 px-3 py-2 bg-white/90 hover:bg-white text-gray-700 rounded-xl shadow-md opacity-0 group-hover:opacity-100 transition-all text-sm font-semibold"
               >
-                <Camera size={16} /> แก้ไขรูปหน้าปก
+                <Camera size={16} /> {t('profile.editCover')}
               </button>
             )}
           </div>
@@ -191,7 +208,7 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
             <div className="md:hidden flex flex-col items-center text-center -mt-16 relative z-10">
               <div className="relative group mb-3">
                 <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden bg-gray-200 shadow-xl">
-                  <img src={avatarSrc} alt="Profile" className="w-full h-full object-cover" />
+                  <img src={avatarSrc} alt={t('profile.avatarAlt')} className="w-full h-full object-cover" />
                 </div>
                 {isMe && (
                   <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-1 right-1 p-2 bg-[#5B65F2] hover:bg-[#4a54e1] text-white rounded-full border-2 border-white shadow-lg transition-all hover:scale-110">
@@ -214,26 +231,26 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
               <div className="flex gap-2 mb-3">
                 {isMe ? (
                   <button onClick={onEditClick} className="flex items-center gap-2 px-5 py-2 bg-[#5B65F2] hover:bg-[#4a54e1] text-white font-semibold rounded-xl shadow-md text-sm transition-all">
-                    <Edit2 size={14} /> แก้ไขโปรไฟล์
+                    <Edit2 size={14} /> {t('profile.editProfile')}
                   </button>
                 ) : (
                   <div className="flex gap-2">
                     <FriendButton targetId={displayUser.id} status={friendStatus} onStatusChange={setFriendStatus} size="sm" />
                     <button
-                      onClick={() => modal.confirm(isBlocked ? `ยกเลิกการบล็อก ${displayUser.name}?` : `บล็อก ${displayUser.name}?`, () => {
+                      onClick={() => modal.confirm(isBlocked ? `${t('profile.unblockConfirm')} ${displayUser.name}?` : `${t('profile.blockConfirm')} ${displayUser.name}?`, () => {
                         isBlocked ? net.unblockUser(Number(displayUser.id)) : net.blockUser(Number(displayUser.id));
                         setIsBlocked(!isBlocked);
-                      }, isBlocked ? 'ยกเลิกบล็อก' : 'บล็อก')}
+                      }, isBlocked ? t('profile.unblockConfirm') : t('profile.blockConfirm'))}
                       className={`px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${isBlocked ? 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200'}`}
                     >
-                      {isBlocked ? 'ถูกบล็อก' : 'บล็อก'}
+                      {isBlocked ? t('profile.blocked') : t('profile.block')}
                     </button>
                   </div>
                 )}
               </div>
               <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
-                <span className="flex items-center gap-1"><MapPin size={11} /> {displayUser.province || '—'}</span>
-                <span className="flex items-center gap-1"><Calendar size={11} /> เข้าร่วม {joinedDate}</span>
+                <span className="flex items-center gap-1"><MapPin size={11} /> {provinceName || '—'}</span>
+                <span className="flex items-center gap-1"><Calendar size={11} /> {t('common.joinedDate')} {joinedDate}</span>
               </div>
             </div>
 
@@ -242,7 +259,7 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
               <div className="flex items-end gap-4">
                 <div className="relative group flex-shrink-0">
                   <div className="w-36 h-36 rounded-full border-4 border-white overflow-hidden bg-gray-200 shadow-xl">
-                    <img src={avatarSrc} alt="Profile" className="w-full h-full object-cover" />
+                    <img src={avatarSrc} alt={t('profile.avatarAlt')} className="w-full h-full object-cover" />
                   </div>
                   {isMe && (
                     <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-1 right-1 p-2 bg-[#5B65F2] hover:bg-[#4a54e1] text-white rounded-full border-2 border-white shadow-lg transition-all hover:scale-110">
@@ -259,8 +276,8 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
                   </div>
                   <p className="text-gray-400 text-sm mt-0.5">@{displayUser.id}</p>
                   <div className="flex items-center gap-4 mt-1.5 text-xs text-gray-500">
-                    <span className="flex items-center gap-1"><MapPin size={11} /> {displayUser.province || '—'}</span>
-                    <span className="flex items-center gap-1"><Calendar size={11} /> เข้าร่วม {joinedDate}</span>
+                    <span className="flex items-center gap-1"><MapPin size={11} /> {provinceName || '—'}</span>
+                    <span className="flex items-center gap-1"><Calendar size={11} /> {t('common.joinedDate')} {joinedDate}</span>
                   </div>
                   <div className="flex items-center gap-6 mt-2">
                     {stats.map(stat => (
@@ -275,19 +292,19 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
               <div className="flex gap-2 pb-2 flex-shrink-0">
                 {isMe ? (
                   <button onClick={onEditClick} className="flex items-center gap-2 px-5 py-2.5 bg-[#5B65F2] hover:bg-[#4a54e1] text-white font-semibold rounded-xl shadow-md shadow-[#5B65F2]/20 transition-all hover:-translate-y-0.5 text-sm">
-                    <Edit2 size={15} /> แก้ไขโปรไฟล์
+                    <Edit2 size={15} /> {t('profile.editProfile')}
                   </button>
                 ) : (
                   <div className="flex gap-2">
                     <FriendButton targetId={displayUser.id} status={friendStatus} onStatusChange={setFriendStatus} />
                     <button
-                      onClick={() => modal.confirm(isBlocked ? `ยกเลิกการบล็อก ${displayUser.name}?` : `บล็อก ${displayUser.name}?`, () => {
+                      onClick={() => modal.confirm(isBlocked ? `${t('profile.unblockConfirm')} ${displayUser.name}?` : `${t('profile.blockConfirm')} ${displayUser.name}?`, () => {
                         isBlocked ? net.unblockUser(Number(displayUser.id)) : net.blockUser(Number(displayUser.id));
                         setIsBlocked(!isBlocked);
-                      }, isBlocked ? 'ยกเลิกบล็อก' : 'บล็อก')}
+                      }, isBlocked ? t('profile.unblockConfirm') : t('profile.blockConfirm'))}
                       className={`px-4 py-2.5 text-sm font-medium rounded-xl border transition-all ${isBlocked ? 'bg-red-50 text-red-500 border-red-200' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200'}`}
                     >
-                      {isBlocked ? 'ถูกบล็อก' : 'บล็อก'}
+                      {isBlocked ? t('profile.blocked') : t('profile.block')}
                     </button>
                   </div>
                 )}
@@ -304,15 +321,15 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
               <div className="flex items-center gap-2 mb-4">
                 <BookOpen size={16} className="text-[#5B65F2]" />
-                <h2 className="font-bold text-gray-900">แนะนำตัวเอง</h2>
+                <h2 className="font-bold text-gray-900">{t('profile.about')}</h2>
               </div>
               <p className="text-sm text-gray-600 leading-relaxed italic text-center py-1 whitespace-pre-wrap">
-                {displayUser.bio ? `"${displayUser.bio}"` : isMe ? '"ยังไม่มีคำแนะนำตัว..."' : '"ยินดีที่ได้รู้จักทุกคนครับ ✨"'}
+                {displayUser.bio ? `"${displayUser.bio}"` : `"${t('profile.noBio')}"`}
               </p>
               <div className="mt-4 pt-4 border-t border-gray-50 space-y-2.5">
                 {displayUser.phone && isMe && (
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-400">เบอร์โทร</span>
+                    <span className="text-gray-400">{t('profile.phone')}</span>
                     <span className="font-semibold text-gray-700">{displayUser.phone}</span>
                   </div>
                 )}
@@ -329,8 +346,10 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
           <div className="md:col-span-2 space-y-4">
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 py-3 flex items-center gap-2">
               <Grid3X3 size={16} className="text-[#5B65F2]" />
-              <span className="font-bold text-gray-800 text-sm">{isMe ? 'โพสต์ของคุณ' : `โพสต์ของ ${displayUser.name}`}</span>
-              <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{posts.length} โพสต์</span>
+                    <span className="font-bold text-gray-800 text-sm">
+                      {isMe ? t('profile.yourPostsLabel') : tp('profile.theirPostsLabel', { name: displayUser.name })}
+                    </span>
+                    <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{posts.length} {t('profile.posts')}</span>
             </motion.div>
 
             {loading ? (
@@ -371,7 +390,7 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
             ) : (
               <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-16 text-center text-gray-400">
                 <Grid3X3 size={32} className="mx-auto mb-3 opacity-30" />
-                <p className="text-sm">ยังไม่มีโพสต์</p>
+                <p className="text-sm">{t('profile.noPosts')}</p>
               </div>
             )}
 
@@ -387,7 +406,7 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
                     โหลดเพิ่ม
                   </button>
                 ) : (
-                  <p className="text-xs text-gray-300">— โพสต์ทั้งหมด {posts.length} รายการ —</p>
+                  <p className="text-xs text-gray-300">{tp('profile.postsSummary', { n: posts.length })}</p>
                 )}
               </div>
             )}

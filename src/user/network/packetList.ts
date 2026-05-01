@@ -67,6 +67,7 @@ export enum PacketCS {
     CALL_END                = 103,
 
     GET_UNREAD_MESSAGES     = 104,
+    UPDATE_LANG             = 105,
 }
 
 // Server → Client
@@ -152,4 +153,5 @@ export enum PacketSC {
     CALL_INCOMING   = 104,
 
     UNREAD_MESSAGES = 105,
+    LANG_UPDATED    = 106,
 }

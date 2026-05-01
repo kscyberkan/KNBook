@@ -16,3 +16,102 @@ export const TH_PROVINCES = Array.from(new Set([
   "หนองคาย", "หนองบัวลำภู", "อ่างทอง", "อำนาจเจริญ", "อุดรธานี", 
   "อุตรดิตถ์", "อุทัยธานี", "อุบลราชธานี"
 ])).sort((a, b) => a.localeCompare(b, 'th'));
+
+const PROVINCE_ALIAS_MAP: Record<string, string> = {
+  bangkok: "กรุงเทพมหานคร",
+  krungthepmahanakhon: "กรุงเทพมหานคร",
+  krabi: "กระบี่",
+  kanchanaburi: "กาญจนบุรี",
+  kalasin: "กาฬสินธุ์",
+  kamphaengphet: "กำแพงเพชร",
+  khonkaen: "ขอนแก่น",
+  chanthaburi: "จันทบุรี",
+  chachoengsao: "ฉะเชิงเทรา",
+  chonburi: "ชลบุรี",
+  chainat: "ชัยนาท",
+  chaiyaphum: "ชัยภูมิ",
+  chumphon: "ชุมพร",
+  chiangrai: "เชียงราย",
+  chiangmai: "เชียงใหม่",
+  trang: "ตรัง",
+  trat: "ตราด",
+  tak: "ตาก",
+  nakhonnayok: "นครนายก",
+  nakhonpathom: "นครปฐม",
+  nakhonphanom: "นครพนม",
+  nakhonratchasima: "นครราชสีมา",
+  nakhonsithammarat: "นครศรีธรรมราช",
+  nakhonsawan: "นครสวรรค์",
+  nonthaburi: "นนทบุรี",
+  narathiwat: "นราธิวาส",
+  nan: "น่าน",
+  buengkan: "บึงกาฬ",
+  buriram: "บุรีรัมย์",
+  pathumthani: "ปทุมธานี",
+  prachuapkirkhan: "ประจวบคีรีขันธ์",
+  prachinburi: "ปราจีนบุรี",
+  pattani: "ปัตตานี",
+  phranakhonsiayutthaya: "พระนครศรีอยุธยา",
+  phayao: "พะเยา",
+  phangnga: "พังงา",
+  phatthalung: "พัทลุง",
+  phichit: "พิจิตร",
+  phitsanulok: "พิษณุโลก",
+  phetchaburi: "เพชรบุรี",
+  phetchabun: "เพชรบูรณ์",
+  phrae: "แพร่",
+  phuket: "ภูเก็ต",
+  mahasarakham: "มหาสารคาม",
+  mukdahan: "มุกดาหาร",
+  maehongson: "แม่ฮ่องสอน",
+  yasothon: "ยโสธร",
+  yala: "ยะลา",
+  roiet: "ร้อยเอ็ด",
+  ranong: "ระนอง",
+  rayong: "ระยอง",
+  ratchaburi: "ราชบุรี",
+  lopburi: "ลพบุรี",
+  lampang: "ลำปาง",
+  lamphun: "ลำพูน",
+  loei: "เลย",
+  srisaket: "ศรีสะเกษ",
+  sakonnakhon: "สกลนคร",
+  sakon: "สกลนคร",
+  songkhla: "สงขลา",
+  satun: "สตูล",
+  samutprakarn: "สมุทรปราการ",
+  samutprakan: "สมุทรปราการ",
+  samutsongkhram: "สมุทรสงคราม",
+  samutsakhon: "สมุทรสาคร",
+  sakaeo: "สระแก้ว",
+  saraburi: "สระบุรี",
+  singburi: "สิงห์บุรี",
+  sukhothai: "สุโขทัย",
+  suphanburi: "สุพรรณบุรี",
+  suratthani: "สุราษฎร์ธานี",
+  surin: "สุรินทร์",
+  nongkhai: "หนองคาย",
+  nongbualamphu: "หนองบัวลำภู",
+  angthong: "อ่างทอง",
+  amnatcharoen: "อำนาจเจริญ",
+  udonthani: "อุดรธานี",
+  uttaradit: "อุตรดิตถ์",
+  uthaithani: "อุทัยธานี",
+  ubonratchathani: "อุบลราชธานี",
+};
+
+function normalizeKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[-_\s]+/g, '')
+    .replace(/[^a-zก-ฮ0-9]/g, '');
+}
+
+export function normalizeProvince(province?: string): string | undefined {
+  if (!province) return undefined;
+  const trimmed = province.trim();
+  if (TH_PROVINCES.includes(trimmed)) return trimmed;
+  const normalized = normalizeKey(trimmed);
+  return PROVINCE_ALIAS_MAP[normalized] ?? province;
+}

@@ -16,7 +16,8 @@ function SendLogin(username: string, password: string) {
         const bio          = packet.readString();
         const coverImage   = packet.readString();
         const createdAt    = packet.readString();
-        auth.setLoginData({ id, username, name, token, profileImage, nickname, phone, province, bio, coverImage: coverImage || undefined, createdAt: createdAt || undefined });
+        const lang         = packet.readString() || 'th';
+        auth.setLoginData({ id, username, name, token, profileImage, nickname, phone, province, bio, coverImage: coverImage || undefined, createdAt: createdAt || undefined, lang });
         unsubOk();
         unsubFail();
     });

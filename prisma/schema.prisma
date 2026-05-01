@@ -18,6 +18,7 @@ model User {
   profileImage String?
   coverImage   String?
   token        String?
+  lang         String   @default("th")
   banned       Boolean  @default(false)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

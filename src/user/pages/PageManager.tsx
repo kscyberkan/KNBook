@@ -18,6 +18,7 @@ import { modal } from "../../components/Modal";
 import { FriendsPanel } from "../components/FriendsPanel";
 import { PostModal } from "../components/PostModal";
 import { CallWindow, AnswerCallWindow, IncomingCallModal } from "../components/CallWindow";
+import { useDictionary } from "../../utils/dictionary";
 
 export type PageType = 'feed' | 'profile' | 'edit-profile' | 'bookmarks';
 
@@ -105,6 +106,7 @@ export default function PageManager() {
   const [incomingCall, setIncomingCall] = useState<{ fromId: number; fromName: string; fromAvatar: string; callType: 'audio' | 'video'; sdp: string } | null>(null);
   const [answerCall, setAnswerCall] = useState<{ fromId: number; fromName: string; fromAvatar: string; callType: 'audio' | 'video'; sdp: string; stream: MediaStream } | null>(null);
   const mainScrollRef = useRef<HTMLElement>(null);
+  const { t } = useDictionary();
 
   useLayoutEffect(() => {
     const timer = setTimeout(() => {
@@ -170,7 +172,7 @@ export default function PageManager() {
         user: n.fromName,
         avatar: n.fromImage ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${n.fromName}`,
         message: n.message,
-        time: 'เมื่อกี้',
+        time: t('common.justNow'),
         read: false,
         fromId: n.fromId ?? undefined,
         refId: n.refId ?? undefined,

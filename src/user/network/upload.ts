@@ -1,25 +1,26 @@
 import { join } from 'path';
 import { mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
+import {
+    pickStorageRoot,
+    STORAGE_ROOTS,
+    picturesPath,
+    videosPath,
+    mediaUrl,
+} from '../../storage.config';
 
 /*
-  โครงสร้าง folder:
+  โครงสร้าง folder ภายใน storage root:
   pictures/
-    posts/        รูปในโพสต์
+    post/         รูปในโพสต์
     chat/         รูปในแชท
-    profile/      รูปโปรไฟล์
-    cover/        รูปหน้าปก
-    users/
-      {userId}/   รูปของ user คนนั้นโดยเฉพาะ
+    users/{id}/   รูปโปรไฟล์ + cover ของ user
   videos/
-    posts/
+    post/
     chat/
 */
 
 type SourceType = 'post' | 'chat' | 'profile' | 'cover';
-
-const BASE_PICTURES = join(process.cwd(), 'pictures');
-const BASE_VIDEOS   = join(process.cwd(), 'videos');
 
 async function ensureDir(path: string): Promise<void> {
     if (!existsSync(path)) await mkdir(path, { recursive: true });
@@ -37,11 +38,10 @@ const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp
 const VIDEO_TYPES = new Set(['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime']);
 
 function getSubDir(source: SourceType, userId?: string): string {
-    // profile และ cover แยกตาม userId ด้วย
     if ((source === 'profile' || source === 'cover') && userId) {
         return join('users', userId);
     }
-    return source; // posts, chat
+    return source === 'post' ? 'post' : source; // post, chat
 }
 
 export async function handleUpload(req: Request): Promise<Response> {
@@ -54,37 +54,43 @@ export async function handleUpload(req: Request): Promise<Response> {
         return Response.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // limit: รูป 10MB, วิดีโอ 100MB
     const isImage = IMAGE_TYPES.has(file.type);
     const isVideo = VIDEO_TYPES.has(file.type);
-    const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
-    if (file.size > maxSize) {
-        return Response.json({ error: `ไฟล์ใหญ่เกินไป (สูงสุด ${isVideo ? '100MB' : '10MB'})` }, { status: 413 });
-    }
-
-    const mime    = file.type;
 
     if (!isImage && !isVideo) {
         return Response.json({ error: 'Unsupported file type' }, { status: 415 });
     }
 
-    const ext      = getExt(file.name);
-    const filename = randomName(ext);
-    const subDir   = getSubDir(source, userId ?? undefined);
-
-    let dir: string;
-    let urlBase: string;
-
-    if (isImage) {
-        dir     = join(BASE_PICTURES, subDir);
-        urlBase = `/pictures/${subDir}`;
-    } else {
-        dir     = join(BASE_VIDEOS, subDir);
-        urlBase = `/videos/${subDir}`;
+    // limit: รูป 10MB, วิดีโอ 100MB
+    const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+        return Response.json(
+            { error: `ไฟล์ใหญ่เกินไป (สูงสุด ${isVideo ? '100MB' : '10MB'})` },
+            { status: 413 }
+        );
     }
+
+    // เลือก storage root ที่มีพื้นที่เพียงพอ
+    let root: string;
+    try {
+        root = await pickStorageRoot();
+    } catch (e: any) {
+        console.error('[Upload] Storage full:', e.message);
+        return Response.json({ error: 'Storage full' }, { status: 507 });
+    }
+
+    const rootIndex = STORAGE_ROOTS.indexOf(root);
+    const ext       = getExt(file.name);
+    const filename  = randomName(ext);
+    const subDir    = getSubDir(source, userId);
+
+    const dir = isImage
+        ? picturesPath(root, subDir)
+        : videosPath(root, subDir);
 
     await ensureDir(dir);
     await Bun.write(join(dir, filename), await file.arrayBuffer());
 
-    return Response.json({ url: `${urlBase}/${filename}` });
+    const url = mediaUrl(rootIndex, isImage ? 'pictures' : 'videos', subDir, filename);
+    return Response.json({ url });
 }

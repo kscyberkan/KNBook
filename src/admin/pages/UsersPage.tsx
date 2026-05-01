@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Ban, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { modal } from '../../components/Modal';
+import { useDictionary } from '../../utils/dictionary';
 
 interface User {
   id: number; name: string; username: string;
@@ -18,6 +19,7 @@ export default function UsersPage({ api }: Props) {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const searchRef = React.useRef(search);
+  const { t } = useDictionary();
 
   const fetchUsers = async (p: number, s: string) => {
     setLoading(true);
@@ -46,8 +48,11 @@ export default function UsersPage({ api }: Props) {
   }, [page]);
 
   const toggleBan = async (user: User) => {
-    const action = user.banned ? 'ปลดแบน' : 'แบน';
-    modal.confirm(`ต้องการ${action} "${user.name}" ใช่หรือไม่?`, async () => {
+    const action = user.banned ? t('admin.unban') : t('admin.ban');
+    const confirmMsg = user.banned
+      ? t('admin.unbanConfirm').replace('{name}', user.name)
+      : t('admin.banConfirm').replace('{name}', user.name);
+    modal.confirm(confirmMsg, async () => {
       await api('/users/ban', { method: 'POST', body: JSON.stringify({ userId: user.id, banned: !user.banned }) });
       fetchUsers(page, search);
     }, action);
@@ -62,11 +67,11 @@ export default function UsersPage({ api }: Props) {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="ค้นหาชื่อหรือ username..."
+            placeholder={t('admin.searchUser')}
             className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5B65F2]/20 focus:border-[#5B65F2]"
           />
         </div>
-        <p className="text-xs text-gray-400 mt-2">ทั้งหมด {total.toLocaleString()} คน</p>
+        <p className="text-xs text-gray-400 mt-2">{t('admin.totalCount').replace('{n}', total.toLocaleString())}</p>
       </div>
 
       {/* Table */}
@@ -80,12 +85,12 @@ export default function UsersPage({ api }: Props) {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">ผู้ใช้</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 hidden md:table-cell">Username</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 hidden sm:table-cell">โพสต์</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 hidden lg:table-cell">สมัครเมื่อ</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">สถานะ</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">จัดการ</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">{t('admin.userCol')}</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 hidden md:table-cell">{t('auth.username')}</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 hidden sm:table-cell">{t('admin.postsCol')}</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 hidden lg:table-cell">{t('admin.registeredCol')}</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">{t('admin.statusCol')}</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">{t('admin.manageCol')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -110,7 +115,7 @@ export default function UsersPage({ api }: Props) {
                         u.banned ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
                       }`}>
                         {u.banned ? <Ban size={10} /> : <CheckCircle size={10} />}
-                        {u.banned ? 'แบน' : 'ปกติ'}
+                        {u.banned ? t('admin.statusBanned') : t('admin.statusActive')}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -122,7 +127,7 @@ export default function UsersPage({ api }: Props) {
                             : 'bg-red-50 text-red-600 hover:bg-red-100'
                         }`}
                       >
-                        {u.banned ? 'ปลดแบน' : 'แบน'}
+                        {u.banned ? t('admin.unban') : t('admin.ban')}
                       </button>
                     </td>
                   </tr>
@@ -135,7 +140,7 @@ export default function UsersPage({ api }: Props) {
         {/* Pagination */}
         {pages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-            <span className="text-xs text-gray-400">หน้า {page} / {pages}</span>
+            <span className="text-xs text-gray-400">{t('admin.page.users').replace('{n}', String(page)).replace('{total}', String(pages))}</span>
             <div className="flex gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                 className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors">

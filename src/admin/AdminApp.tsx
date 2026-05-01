@@ -3,6 +3,7 @@ import { ModalProvider } from '../components/Modal';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import '../index.css';
+import { DictionaryProvider } from '../utils/dictionary';
 
 export function AdminApp() {
   const [token, setToken] = useState(() => sessionStorage.getItem('admin_token') ?? '');
@@ -18,12 +19,12 @@ export function AdminApp() {
   };
 
   return (
-    <>
+    <DictionaryProvider>
       <ModalProvider />
       {token
         ? <AdminDashboard token={token} onLogout={handleLogout} />
         : <AdminLogin onLogin={handleLogin} />
       }
-    </>
+    </DictionaryProvider>
   );
 }

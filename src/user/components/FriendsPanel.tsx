@@ -4,6 +4,7 @@ import { X, UserCheck, UserX, Users, Clock, UserPlus } from 'lucide-react';
 import { modal } from '../../components/Modal';
 import net, { PacketSC } from '../network/client';
 import Packet from '../network/packet';
+import { useDictionary } from '../../utils/dictionary';
 
 interface FriendUser {
   id: string;
@@ -24,6 +25,7 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ open, onClose, onUse
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [pending, setPending] = useState<FriendUser[]>([]);
   const [sent, setSent] = useState<FriendUser[]>([]);
+  const { t } = useDictionary();
 
   useEffect(() => {
     if (!open) return;
@@ -46,30 +48,30 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ open, onClose, onUse
   };
 
   const declineRequest = (userId: string) => {
-    modal.confirm('ปฏิเสธคำขอเป็นเพื่อน?', () => {
+    modal.confirm(t('friend.declineConfirm'), () => {
       net.removeFriend(Number(userId));
       setPending(prev => prev.filter(u => u.id !== userId));
-    }, 'ปฏิเสธ');
+    }, t('friend.decline'));
   };
 
   const cancelRequest = (userId: string) => {
-    modal.confirm('ยกเลิกคำขอเป็นเพื่อน?', () => {
+    modal.confirm(t('friend.cancelConfirm'), () => {
       net.removeFriend(Number(userId));
       setSent(prev => prev.filter(u => u.id !== userId));
-    }, 'ยกเลิกคำขอ');
+    }, t('friend.cancel'));
   };
 
   const removeFriend = (userId: string) => {
-    modal.confirm('ลบเพื่อนคนนี้?', () => {
+    modal.confirm(t('friend.removeConfirm'), () => {
       net.removeFriend(Number(userId));
       setFriends(prev => prev.filter(u => u.id !== userId));
-    }, 'ลบเพื่อน');
+    }, t('friend.remove'));
   };
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
-    { id: 'friends', label: 'เพื่อน', icon: <Users size={15} />, count: friends.length },
-    { id: 'pending', label: 'คำขอ', icon: <UserPlus size={15} />, count: pending.length },
-    { id: 'sent', label: 'ส่งไป', icon: <Clock size={15} />, count: sent.length },
+    { id: 'friends', label: t('nav.friends'), icon: <Users size={15} />, count: friends.length },
+    { id: 'pending', label: t('friend.requests'), icon: <UserPlus size={15} />, count: pending.length },
+    { id: 'sent', label: t('friend.sent'), icon: <Clock size={15} />, count: sent.length },
   ];
 
   return (
@@ -86,7 +88,7 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ open, onClose, onUse
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3.5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-              <span className="font-bold text-gray-900 text-sm">เพื่อน</span>
+              <span className="font-bold text-gray-900 text-sm">{t('nav.friends')}</span>
               <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-400">
                 <X size={16} />
               </button>
@@ -120,14 +122,14 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ open, onClose, onUse
             <div className="max-h-80 overflow-y-auto">
               {tab === 'friends' && (
                 friends.length === 0 ? (
-                  <div className="py-10 text-center text-gray-400 text-sm">ยังไม่มีเพื่อน</div>
+                  <div className="py-10 text-center text-gray-400 text-sm">{t('friend.noFriends')}</div>
                 ) : friends.map(u => (
                   <FriendRow key={u.id} user={u} onUserClick={onUserClick}>
                     <button
                       onClick={() => removeFriend(u.id)}
                       className="text-xs text-gray-400 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
                     >
-                      ลบ
+                      {t('friend.remove')}
                     </button>
                   </FriendRow>
                 ))
@@ -135,7 +137,7 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ open, onClose, onUse
 
               {tab === 'pending' && (
                 pending.length === 0 ? (
-                  <div className="py-10 text-center text-gray-400 text-sm">ไม่มีคำขอที่รอ</div>
+                  <div className="py-10 text-center text-gray-400 text-sm">{t('friend.noPending')}</div>
                 ) : pending.map(u => (
                   <FriendRow key={u.id} user={u} onUserClick={onUserClick}>
                     <div className="flex gap-1.5">
@@ -143,13 +145,13 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ open, onClose, onUse
                         onClick={() => acceptRequest(u.id)}
                         className="flex items-center gap-1 text-xs bg-[#5B65F2] hover:bg-[#4a54e1] text-white px-2.5 py-1.5 rounded-lg font-medium transition-colors"
                       >
-                        <UserCheck size={12} /> ยืนยัน
+                        <UserCheck size={12} /> {t('friend.confirm')}
                       </button>
                       <button
                         onClick={() => declineRequest(u.id)}
                         className="flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2.5 py-1.5 rounded-lg font-medium transition-colors"
                       >
-                        <UserX size={12} /> ปฏิเสธ
+                        <UserX size={12} /> {t('friend.decline')}
                       </button>
                     </div>
                   </FriendRow>
@@ -158,14 +160,14 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ open, onClose, onUse
 
               {tab === 'sent' && (
                 sent.length === 0 ? (
-                  <div className="py-10 text-center text-gray-400 text-sm">ไม่มีคำขอที่ส่งออกไป</div>
+                  <div className="py-10 text-center text-gray-400 text-sm">{t('friend.noSent')}</div>
                 ) : sent.map(u => (
                   <FriendRow key={u.id} user={u} onUserClick={onUserClick}>
                     <button
                       onClick={() => cancelRequest(u.id)}
                       className="text-xs text-gray-400 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
                     >
-                      ยกเลิก
+                      {t('friend.cancel')}
                     </button>
                   </FriendRow>
                 ))

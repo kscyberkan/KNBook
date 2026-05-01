@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Shield, Eye, EyeOff } from 'lucide-react';
+import { useDictionary } from '../../utils/dictionary';
 
 interface Props { onLogin: (token: string) => void; }
 
@@ -8,6 +9,7 @@ export default function AdminLogin({ onLogin }: Props) {
   const [show, setShow] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { t } = useDictionary();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,7 +19,7 @@ export default function AdminLogin({ onLogin }: Props) {
     if (res.ok) {
       onLogin(token);
     } else {
-      setError('Token ไม่ถูกต้อง');
+      setError(t('auth.tokenInvalid'));
     }
     setLoading(false);
   };
@@ -29,8 +31,8 @@ export default function AdminLogin({ onLogin }: Props) {
           <div className="w-16 h-16 bg-gradient-to-br from-[#5B65F2] to-[#7B83F5] rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-[#5B65F2]/30">
             <Shield size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-black text-gray-900">KN Admin</h1>
-          <p className="text-sm text-gray-400 mt-1">เข้าสู่ระบบจัดการ</p>
+          <h1 className="text-2xl font-black text-gray-900">{t('admin.panelName')}</h1>
+          <p className="text-sm text-gray-400 mt-1">{t('admin.panelDescription')}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -39,7 +41,7 @@ export default function AdminLogin({ onLogin }: Props) {
               type={show ? 'text' : 'password'}
               value={token}
               onChange={e => setToken(e.target.value)}
-              placeholder="Admin Token"
+              placeholder={t('admin.tokenPlaceholder')}
               className="w-full px-4 py-3 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5B65F2]/30 focus:border-[#5B65F2]"
             />
             <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -52,7 +54,7 @@ export default function AdminLogin({ onLogin }: Props) {
             disabled={!token || loading}
             className="w-full py-3 bg-gradient-to-r from-[#5B65F2] to-[#7B83F5] text-white rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
           >
-            {loading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
+          {loading ? t('common.loading') : t('auth.login')}
           </button>
         </form>
       </div>

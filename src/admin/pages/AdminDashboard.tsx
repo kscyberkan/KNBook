@@ -5,22 +5,24 @@ import UsersPage from './UsersPage';
 import PostsPage from './PostsPage';
 import ReportsPage from './ReportsPage';
 import AuditLogPage from './AuditLogPage';
+import { useDictionary } from '../../utils/dictionary';
 
 type Page = 'stats' | 'users' | 'posts' | 'reports' | 'logs';
 
 interface Props { token: string; onLogout: () => void; }
 
-const navItems: { id: Page; label: string; icon: React.ReactNode }[] = [
-  { id: 'stats',   label: 'ภาพรวม',   icon: <LayoutDashboard size={18} /> },
-  { id: 'users',   label: 'ผู้ใช้งาน', icon: <Users size={18} /> },
-  { id: 'posts',   label: 'โพสต์',     icon: <FileText size={18} /> },
-  { id: 'reports', label: 'รายงาน',    icon: <Flag size={18} /> },
-  { id: 'logs',    label: 'Audit Log', icon: <ScrollText size={18} /> },
-];
-
 export default function AdminDashboard({ token, onLogout }: Props) {
   const [page, setPage] = useState<Page>('stats');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { t } = useDictionary();
+
+  const navItems: { id: Page; label: string; icon: React.ReactNode }[] = [
+    { id: 'stats',   label: t('admin.overview'),  icon: <LayoutDashboard size={18} /> },
+    { id: 'users',   label: t('admin.users'),      icon: <Users size={18} /> },
+    { id: 'posts',   label: t('admin.posts'),      icon: <FileText size={18} /> },
+    { id: 'reports', label: t('admin.reports'),    icon: <Flag size={18} /> },
+    { id: 'logs',    label: t('admin.auditLog'),   icon: <ScrollText size={18} /> },
+  ];
 
   const api = (path: string, opts?: RequestInit) =>
     fetch(`/api/admin${path}`, { ...opts, headers: { 'x-admin-token': token, 'Content-Type': 'application/json', ...(opts?.headers ?? {}) } });
@@ -42,8 +44,8 @@ export default function AdminDashboard({ token, onLogout }: Props) {
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-gradient-to-br from-[#5B65F2] to-[#7B83F5] rounded-xl flex items-center justify-center font-black text-lg shadow-lg">K</div>
             <div>
-              <div className="font-bold text-sm">KN Admin</div>
-              <div className="text-[10px] text-white/40">Control Panel</div>
+              <div className="font-bold text-sm">{t('admin.panelName')}</div>
+              <div className="text-[10px] text-white/40">{t('admin.panelDescription')}</div>
             </div>
           </div>
         </div>
@@ -57,7 +59,7 @@ export default function AdminDashboard({ token, onLogout }: Props) {
         </nav>
         <div className="px-3 py-4 border-t border-white/10">
           <button onClick={onLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-white/60 hover:bg-white/8 hover:text-white transition-colors">
-            <LogOut size={18} /> ออกจากระบบ
+            <LogOut size={18} /> {t('nav.logout')}
           </button>
         </div>
       </aside>

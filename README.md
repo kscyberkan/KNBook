@@ -1,37 +1,35 @@
-# KN Book — Social Network Platform
+# KN Book — แพลตฟอร์มโซเชียลเน็ตเวิร์ก
 
-Full-stack social media application built with Bun, React, PostgreSQL, and WebSocket.
+KN Book เป็นแอปโซเชียลมีเดียแบบครบวงจรที่สร้างด้วย Bun, React, PostgreSQL และ WebSocket รองรับอินเตอร์เฟซภาษาไทย อังกฤษ จีน และญี่ปุ่น โดยระบบคำแปลจะจัดการด้วยไฟล์ CSV
 
-## Features
+## ฟีเจอร์
 
-### 🎯 Core
-- **Feed** — Infinite scroll, real-time updates
-- **Posts** — Text, images, videos, stickers, feelings
-- **Reactions** — 6 types (ถูกใจ, รัก, ฮ่าๆ, เฉยๆ, เศร้า, โกรธ)
-- **Comments** — Text, images, stickers, replies, @mentions, emoji support
-- **Share** — Unlimited depth chain
+### 🎯 ฟีเจอร์หลัก
+- **ฟีด** — เลื่อนดูแบบไม่สิ้นสุด พร้อมอัปเดตแบบเรียลไทม์
+- **โพสต์** — ข้อความ รูปภาพ วิดีโอ สติกเกอร์ และความรู้สึก
+- **รีแอคชั่น** — 6 แบบ พร้อมป้ายกำกับตามภาษา
+- **คอมเมนต์** — ข้อความ รูปภาพ สติกเกอร์ ตอบกลับ @mentions อีโมจิ
+- **โปรไฟล์** — อวาตาร์ รูปหน้าปก ประวัติ และสเตตัส
 
-### 👥 Social
-- **Friends** — Add, accept, decline, remove
-- **Chat** — Real-time messaging, files, images, videos, emoji
-- **Notifications** — Real-time push, actionable (accept friend requests)
-- **Profile** — Avatar, cover, bio, stats
+### 👥 ด้านสังคม
+- **เพื่อน** — เพิ่ม เพื่อน ยอมรับ ปฏิเสธ ลบ
+- **แชท** — ส่งข้อความแบบเรียลไทม์ ไฟล์ รูปภาพ วิดีโอ อีโมจิ
+- **การแจ้งเตือน** — แจ้งเตือนแบบเรียลไทม์ พร้อม action
+- **บุ๊กมาร์ก** — บันทึกโพสต์ไว้ดูภายหลัง
 
-### 🔐 Auth
-- Username/password
-- LINE Login
+### 🔐 การยืนยันตัวตน
+- เข้าสู่ระบบด้วยชื่อผู้ใช้/รหัสผ่าน
+- เข้าสู่ระบบด้วย LINE
 - Google OAuth
-- Session management (force logout on duplicate login)
+- จัดการ session พร้อมป้องกันการล็อกอินซ้ำ
 
-### 🎨 UI/UX
-- Responsive design (mobile + desktop)
-- Framer Motion animations
-- Modal system (no alert/confirm)
-- Emoji SVG system (`:emojiId:` → render SVG)
-- Lightbox for images/videos
-- Custom video player
+### 🌐 การแปลภาษา
+- รองรับ: `th`, `en`, `cn`, `jp`
+- โหลดคำแปลจาก `public/Dictionary.csv`
+- เข้าถึงคำแปลด้วย `t('key.path')`
+- บันทึกภาษาที่เลือกไว้ใน `localStorage`
 
-## Tech Stack
+## เทคโนโลยี
 
 **Frontend:**
 - React 19
@@ -41,98 +39,89 @@ Full-stack social media application built with Bun, React, PostgreSQL, and WebSo
 - Lucide Icons
 
 **Backend:**
-- Bun (serve + WebSocket)
+- Bun (server + WebSocket)
 - PostgreSQL
-- Prisma 7 (with pg adapter)
-- Binary packet protocol (DataView/Uint8Array)
+- Prisma 7 (pg adapter)
+- โปรโตคอลแพ็กเก็ตไบนารีสำหรับฟีเจอร์เรียลไทม์
 
-**File Storage:**
-- Local filesystem
-- Organized by type: `pictures/{posts|chat|users/{id}}`, `videos/{posts|chat}`
+**ที่เก็บไฟล์:**
+- เก็บไฟล์บนระบบไฟล์ท้องถิ่น
+- จัดเรียงตามประเภท: `pictures/{posts|chat|users/{id}}`, `videos/{posts|chat}`
 
-## Setup
+## การติดตั้ง
 
 ```bash
-# Install dependencies
 bun install
-
-# Setup database
 cp .env.example .env
-# Edit DATABASE_URL in .env
-
-# Run migrations
+# แก้ไข DATABASE_URL ใน .env
 bunx prisma migrate dev
-
-# Start dev server
 bun dev
 ```
 
-## Project Structure
+## คู่มือการแปลภาษา
+
+แอปใช้ระบบพจนานุกรมจาก CSV:
+
+- `public/Dictionary.csv` เก็บคีย์คำแปลและข้อความในแต่ละภาษา
+- `/api/dictionary` อ่าน CSV แล้วส่งกลับเป็น JSON แบบ nested
+- `src/utils/dictionary.tsx` มี `DictionaryProvider`, `useDictionary()` และ `LangSelector`
+- ใช้คำแปลผ่าน `t('namespace.key')`
+
+### เพิ่มหรือแก้ไขคำแปล
+
+1. เปิด `public/Dictionary.csv`
+2. เพิ่มหรือแก้ไขแถวที่มีคีย์และค่าคำแปลสำหรับ `th`, `en`, `cn`, `jp`
+3. บันทึกและรีโหลดแอป
+
+ตัวอย่าง:
+
+```csv
+example.hello,สวัสดี,Hello,你好,こんにちは
+```
+
+## โครงสร้างโปรเจกต์
 
 ```
 src/
-  ├── auth/           # Login, register, LINE/Google OAuth
-  ├── components/     # Reusable UI components
-  │   ├── emoji/      # SVG emoji system
-  │   ├── Avatar.tsx
-  │   ├── Modal.tsx
-  │   ├── FeedItem.tsx
-  │   ├── CreatePost.tsx
-  │   ├── ChatWindow.tsx
-  │   └── ...
-  ├── pages/          # Main pages (Feed, Profile, EditProfile)
-  ├── network/        # WebSocket client/server, packet protocol
-  ├── prisma/         # Database queries (user, post, comment, etc.)
-  ├── types/          # TypeScript interfaces
-  └── utils/          # Helpers (storage, theme, defaultAvatar)
+  auth/           # UI และ logic ของการยืนยันตัวตน
+  components/     # คอมโพเนนต์ UI ที่ใช้ซ้ำได้
+    emoji/        # ระบบอีโมจิ SVG
+  admin/          # อินเตอร์เฟซผู้ดูแลระบบ
+  user/           # หน้าของผู้ใช้และฟีเจอร์ต่าง ๆ
+  network/        # WebSocket client และ helpers ของ API
+  prisma/         # คำสั่งฐานข้อมูลและ helpers
+  types/          # TypeScript types
+  utils/          # ฮีลเปอร์และพจนานุกรม
+
+public/
+  Dictionary.csv  # ไฟล์คำแปล
 
 prisma/
-  ├── schema.prisma   # Database schema
-  └── migrations/     # Migration history
+  schema.prisma   # สคีมาฐานข้อมูล
+  migrations/     # ประวัติการย้ายฐานข้อมูล
 ```
 
-## API
-
-### WebSocket Packets
-- Auth: LOGIN, REGISTER, RESUME, LOGOUT
-- Posts: CREATE_POST, GET_FEED, GET_USER_POSTS, DELETE_POST
-- Reactions: REACT_POST, UNREACT_POST
-- Comments: CREATE_COMMENT (with image/sticker/reply support)
-- Chat: SEND_MESSAGE, GET_CONVERSATION, READ_MESSAGES
-- Friends: SEND_FRIEND_REQUEST, ACCEPT_FRIEND_REQUEST, REMOVE_FRIEND
-- Notifications: GET_NOTIFICATIONS, MARK_NOTIFICATION_READ
-
-### REST API
-- `POST /api/upload` — Upload files (auto-organized by source type)
-- `GET /api/post/:id` — Get single post
-- `GET /pictures/*` — Serve images
-- `GET /videos/*` — Serve videos
-
-## Database Schema
-
-- **User** — Profile, auth, timestamps
-- **Post** — Content, media, feelings, share chain
-- **Reaction** — Type, user (unique per post+user)
-- **Comment** — Text, media, reply chain
-- **Message** — Chat messages, files, read status
-- **Notification** — Type, from/to, handled status
-- **Friendship** — Requester/addressee, status (pending/accepted)
-
-## Development
+## การใช้งาน
 
 ```bash
-# Dev mode with hot reload
 bun dev
-
-# Build for production
-bun run build
-
-# Database commands
-bunx prisma studio          # Open database GUI
-bunx prisma migrate dev     # Create migration
-bunx prisma generate        # Regenerate client
 ```
 
-## License
+## คำสั่งที่ใช้บ่อย
+
+```bash
+bunx prisma studio
+bunx prisma migrate dev
+bunx prisma generate
+bun run build
+```
+
+## หมายเหตุ
+
+- ตัวเลือกภาษาอังกฤษตอนนี้ใช้ธงสหรัฐ `🇺🇸` เพื่อความสอดคล้อง
+- หากคำแปลหาย ระบบจะคืนค่าเป็นคีย์คำแปลแทน
+- การเลือกภาษาจะถูกเก็บไว้ใน `localStorage` และนำกลับมาใช้ใน session ถัดไป
+
+## ใบอนุญาต
 
 MIT

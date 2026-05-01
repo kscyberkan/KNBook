@@ -10,4 +10,5 @@ export interface LoginData {
     province?: string;
     bio?: string;
     createdAt?: string;
+    lang?: string;
 }

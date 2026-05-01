@@ -70,6 +70,7 @@ const handlers = new Map<number, Handler>([
     [PacketCS.CALL_ICE, recvCallIce],
     [PacketCS.CALL_END, recvCallEnd],
     [PacketCS.GET_UNREAD_MESSAGES, recvGetUnreadMessages],
+    [PacketCS.UPDATE_LANG,         recvUpdateLang],
 ]);
 
 // ─── Packet Queue ────────────────────────────────────────────────────────────
@@ -213,6 +214,7 @@ async function recvLogin(socket: WS, packet: Packet): Promise<void> {
     p.writeString(user.bio ?? '');
     p.writeString(user.coverImage ?? '');
     p.writeString(user.createdAt.toISOString());
+    p.writeString((user as any).lang ?? 'th');
     socket.send(p.toBuffer());
 }
 
@@ -1055,5 +1057,20 @@ async function recvGetUnreadMessages(socket: WS, _packet: Packet): Promise<void>
     const rows = await getUnreadPerSender(userId);
     const p = new Packet(PacketSC.UNREAD_MESSAGES);
     p.writeString(JSON.stringify(rows.map(r => ({ senderId: String(r.senderId), count: r.count }))));
+    socket.send(p.toBuffer());
+}
+
+async function recvUpdateLang(socket: WS, packet: Packet): Promise<void> {
+    const userId = requireAuth(socket);
+    if (!userId) return;
+
+    const lang = packet.readString();
+    const allowed = ['th', 'en', 'cn', 'jp'];
+    if (!allowed.includes(lang)) { sendError(socket, 'Invalid lang'); return; }
+
+    await updateUser(userId, { lang } as any);
+
+    const p = new Packet(PacketSC.LANG_UPDATED);
+    p.writeString(lang);
     socket.send(p.toBuffer());
 }

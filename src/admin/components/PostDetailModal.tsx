@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Heart, MessageCircle, Flag, Trash2, Reply } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { modal } from '../../components/Modal';
+import { useDictionary } from '../../utils/dictionary';
 
 interface Comment {
   id: number; text: string | null; imageUrl: string | null; stickerUrl: string | null;
@@ -30,6 +31,7 @@ export default function PostDetailModal({ postId, api, onClose, onDeleted }: Pro
   const [post, setPost] = useState<PostDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<'comments' | 'reactions' | 'reports'>('comments');
+  const { t } = useDictionary();
 
   useEffect(() => {
     if (!postId) { setPost(null); return; }
@@ -39,11 +41,11 @@ export default function PostDetailModal({ postId, api, onClose, onDeleted }: Pro
 
   const handleDelete = () => {
     if (!post) return;
-    modal.confirm(`ลบโพสต์ของ "${post.user.name}" ใช่หรือไม่?`, async () => {
+    modal.confirm(t('admin.deletePostConfirmDetail').replace('{name}', post.user.name), async () => {
       await api('/posts/delete', { method: 'POST', body: JSON.stringify({ postId: post.id }) });
       onDeleted();
       onClose();
-    }, 'ลบโพสต์');
+    }, t('admin.deletePost'));
   };
 
   // group reactions by type
@@ -75,10 +77,10 @@ export default function PostDetailModal({ postId, api, onClose, onDeleted }: Pro
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-              <span className="font-bold text-gray-900">รายละเอียดโพสต์</span>
+              <span className="font-bold text-gray-900">{t('admin.postDetail')}</span>
               <div className="flex items-center gap-2">
                 <button onClick={handleDelete} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded-lg transition-colors">
-                  <Trash2 size={13} /> ลบโพสต์
+                  <Trash2 size={13} /> {t('admin.deletePost')}
                 </button>
                 <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
                   <X size={18} />
@@ -101,7 +103,7 @@ export default function PostDetailModal({ postId, api, onClose, onDeleted }: Pro
                       <div className="font-semibold text-sm text-gray-900">{post.user.name}</div>
                       <div className="text-[11px] text-gray-400">
                         {new Date(post.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        {post.feeling && <span className="ml-2">กำลังรู้สึก {post.feeling}</span>}
+                        {post.feeling && <span className="ml-2">{t('post.feeling')} {post.feeling}</span>}
                       </div>
                     </div>
                   </div>
@@ -122,9 +124,9 @@ export default function PostDetailModal({ postId, api, onClose, onDeleted }: Pro
                 {/* Tabs */}
                 <div className="flex border-b border-gray-100 px-5 flex-shrink-0">
                   {([
-                    { id: 'comments', label: `ความคิดเห็น (${post._count.comments})` },
-                    { id: 'reactions', label: `Reactions (${post._count.reactions})` },
-                    { id: 'reports', label: `รายงาน (${post._count.reports})`, red: post._count.reports > 0 },
+                    { id: 'comments', label: `${t('admin.tabComments')} (${post._count.comments})` },
+                    { id: 'reactions', label: `${t('admin.tabReactions')} (${post._count.reactions})` },
+                    { id: 'reports', label: `${t('admin.tabReports')} (${post._count.reports})`, red: post._count.reports > 0 },
                   ] as const).map(t => (
                     <button
                       key={t.id}
@@ -145,7 +147,7 @@ export default function PostDetailModal({ postId, api, onClose, onDeleted }: Pro
                   {tab === 'comments' && (
                     <div className="space-y-3">
                       {post.comments.length === 0 ? (
-                        <p className="text-center text-gray-400 text-sm py-8">ยังไม่มีความคิดเห็น</p>
+                        <p className="text-center text-gray-400 text-sm py-8">{t('common.noData')}</p>
                       ) : post.comments.map(c => (
                         <div key={c.id} className={`flex items-start gap-2.5 ${c.replyToId ? 'ml-8' : ''}`}>
                           {c.replyToId && <Reply size={12} className="text-gray-300 mt-2 flex-shrink-0" />}
@@ -170,7 +172,7 @@ export default function PostDetailModal({ postId, api, onClose, onDeleted }: Pro
                   {tab === 'reactions' && (
                     <div className="space-y-2">
                       {reactionGroups.length === 0 ? (
-                        <p className="text-center text-gray-400 text-sm py-8">ยังไม่มี reaction</p>
+                        <p className="text-center text-gray-400 text-sm py-8">{t('common.noData')}</p>
                       ) : reactionGroups.map(([type, users]) => (
                         <div key={type} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
                           <span className="text-lg">{type}</span>
@@ -186,7 +188,7 @@ export default function PostDetailModal({ postId, api, onClose, onDeleted }: Pro
                   {tab === 'reports' && (
                     <div className="space-y-2">
                       {post.reports.length === 0 ? (
-                        <p className="text-center text-gray-400 text-sm py-8">ไม่มีรายงาน</p>
+                        <p className="text-center text-gray-400 text-sm py-8">{t('admin.noReports')}</p>
                       ) : post.reports.map(r => (
                         <div key={r.id} className="flex items-start gap-3 p-3 bg-red-50 rounded-xl border border-red-100">
                           <Flag size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
@@ -204,7 +206,7 @@ export default function PostDetailModal({ postId, api, onClose, onDeleted }: Pro
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center flex-1 py-16 text-gray-400 text-sm">ไม่พบโพสต์</div>
+              <div className="flex items-center justify-center flex-1 py-16 text-gray-400 text-sm">{t('common.noData')}</div>
             )}
           </motion.div>
         </motion.div>

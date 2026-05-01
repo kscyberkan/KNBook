@@ -11,6 +11,7 @@ import { EmojiText } from './emoji/EmojiText';
 import { MentionInput } from './emoji/MentionInput';
 import { CommentInput } from './CommentInput';
 import { modal } from '../../components/Modal';
+import { useDictionary } from '../../utils/dictionary';
 
 interface FeedItemProps {
   postId?: string;
@@ -37,6 +38,7 @@ interface FeedItemProps {
 
 function SharedPost({ post, isSub, onUserClick }: { post?: Post; isSub?: boolean; onUserClick?: (user: User) => void }) {
   if (!post) return null;
+  const { t, lang } = useDictionary();
   return (
     <div className={`rounded-xl overflow-hidden ${isSub ? 'mx-0 border-t-1' : 'mx-3 mb-3 border border-gray-200'} bg-gray-50 border-gray-200`}>
       <div className="p-3 flex items-center space-x-2 border-b border-gray-100 bg-white/60">
@@ -58,7 +60,7 @@ function SharedPost({ post, isSub, onUserClick }: { post?: Post; isSub?: boolean
               <span className="text-[11px] text-gray-400">กำลังรู้สึก <span className="text-gray-600">{post.feeling}</span></span>
             )}
           </div>
-          <div className="text-[10px] text-gray-400">โพสต์ต้นฉบับ · {formatRelativeTime(post.createdAt)}</div>
+          <div className="text-[10px] text-gray-400">{t('post.originalPost')} · {formatRelativeTime(post.createdAt, t, lang)}</div>
         </div>
       </div>
       <div className="bg-white">
@@ -82,7 +84,7 @@ function SharedPost({ post, isSub, onUserClick }: { post?: Post; isSub?: boolean
   );
 }
 
-function formatRelativeTime(isoString?: string): string {
+function formatRelativeTime(isoString: string | undefined, t: (key: string) => string, lang: string): string {
   if (!isoString) return '';
   const d = new Date(isoString);
   const now = new Date();
@@ -90,11 +92,12 @@ function formatRelativeTime(isoString?: string): string {
   const mins = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
-  if (mins < 1) return 'เมื่อกี้';
-  if (mins < 60) return `${mins} นาทีที่แล้ว`;
-  if (hours < 24) return `${hours} ชั่วโมงที่แล้ว`;
-  if (days < 7) return `${days} วันที่แล้ว`;
-  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (mins < 1) return t('common.justNow');
+  if (mins < 60) return t('common.minutesAgo').replace('{n}', String(mins));
+  if (hours < 24) return t('common.hoursAgo').replace('{n}', String(hours));
+  if (days < 7) return t('common.daysAgo').replace('{n}', String(days));
+  const locale = lang === 'th' ? 'th-TH' : lang === 'cn' ? 'zh-CN' : lang === 'jp' ? 'ja-JP' : 'en-US';
+  return d.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function CommentBubble({ c, isReply, allUsers, onCommentUserClick, onReply, setShowReplies, setPrefillText, inlineInputRef }: {
@@ -109,6 +112,7 @@ function CommentBubble({ c, isReply, allUsers, onCommentUserClick, onReply, setS
 }) {
   const [editing, setEditing] = React.useState(false);
   const [editText, setEditText] = React.useState(c.text ?? '');
+  const { t, lang } = useDictionary();
   return (
     <div className="flex items-start gap-2">
       <img
@@ -131,8 +135,8 @@ function CommentBubble({ c, isReply, allUsers, onCommentUserClick, onReply, setS
                 }}
                 className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#5B65F2]"
               />
-              <button onClick={() => { net.editComment(Number(c.id), editText); setEditing(false); }} className="text-xs text-[#5B65F2] font-medium">บันทึก</button>
-              <button onClick={() => setEditing(false)} className="text-xs text-gray-400">ยกเลิก</button>
+              <button onClick={() => { net.editComment(Number(c.id), editText); setEditing(false); }} className="text-xs text-[#5B65F2] font-medium">{t('comment.save')}</button>
+              <button onClick={() => setEditing(false)} className="text-xs text-gray-400">{t('comment.cancel')}</button>
             </div>
           ) : (
             <>
@@ -143,7 +147,7 @@ function CommentBubble({ c, isReply, allUsers, onCommentUserClick, onReply, setS
           )}
         </div>
         <div className="flex items-center gap-3 mt-1 ml-2">
-          <span className="text-[10px] text-gray-400">{formatRelativeTime(c.createdAt)}</span>
+          <span className="text-[10px] text-gray-400">{formatRelativeTime(c.createdAt, t, lang)}</span>
           <button
             onClick={() => {
               if (isReply) {
@@ -156,13 +160,13 @@ function CommentBubble({ c, isReply, allUsers, onCommentUserClick, onReply, setS
             }}
             className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-[#5B65F2] transition-colors"
           >
-            <Reply size={12} /> ตอบกลับ
+            <Reply size={12} /> {t('comment.reply')}
           </button>
           {c.user.id === Global.user.id && (
             <>
-              <button onClick={() => { setEditText(c.text ?? ''); setEditing(true); }} className="text-[11px] text-gray-400 hover:text-[#5B65F2] transition-colors">แก้ไข</button>
-              <button onClick={() => modal.confirm('ลบความคิดเห็นนี้ใช่หรือไม่?', () => { if (!c.id.startsWith('init-')) net.deleteComment(Number(c.id)); }, 'ลบ')}
-                className="text-[11px] text-gray-400 hover:text-red-500 transition-colors">ลบ</button>
+              <button onClick={() => { setEditText(c.text ?? ''); setEditing(true); }} className="text-[11px] text-gray-400 hover:text-[#5B65F2] transition-colors">{t('comment.edit')}</button>
+              <button onClick={() => modal.confirm(t('comment.deleteConfirm'), () => { if (!c.id.startsWith('init-')) net.deleteComment(Number(c.id)); }, t('comment.delete'))}
+                className="text-[11px] text-gray-400 hover:text-red-500 transition-colors">{t('comment.delete')}</button>
             </>
           )}
         </div>
@@ -184,6 +188,7 @@ function CommentThread({ comment, replies, onCommentUserClick, onReply, comments
   const [prefillText, setPrefillText] = React.useState('');
   const inlineInputRef = React.useRef<{ focus: () => void; setText: (t: string) => void } | null>(null);
   const allUsers = comments.map(c => c.user);
+  const { t } = useDictionary();
 
   // auto-expand เมื่อมี reply ใหม่
   React.useEffect(() => {
@@ -205,7 +210,7 @@ function CommentThread({ comment, replies, onCommentUserClick, onReply, comments
           <div className="relative pl-4 border-l-2 border-gray-100 space-y-2">
             {!showReplies && replies.length > 0 ? (
               <button onClick={() => setShowReplies(true)} className="text-xs text-[#5B65F2] font-semibold hover:underline py-1">
-                ดูการตอบกลับทั้ง {replies.length} รายการ
+                {t('post.showReplies').replace('{n}', String(replies.length))}
               </button>
             ) : (
               <AnimatePresence>
@@ -215,7 +220,7 @@ function CommentThread({ comment, replies, onCommentUserClick, onReply, comments
                   </motion.div>
                 ))}
                 {replies.length > 0 && (
-                  <button onClick={() => setShowReplies(false)} className="text-xs text-gray-400 hover:text-gray-600 py-1">ซ่อนการตอบกลับ</button>
+                  <button onClick={() => setShowReplies(false)} className="text-xs text-gray-400 hover:text-gray-600 py-1">{t('post.hideReplies')}</button>
                 )}
               </AnimatePresence>
             )}
@@ -294,6 +299,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
   const [editingPost, setEditingPost] = useState(false);
   const [editPostText, setEditPostText] = useState(postText ?? '');
+  const { t, lang } = useDictionary();
 
   // sync เมื่อ parent อัปเดต initialBookmarked (เช่น หลัง BOOKMARK_IDS โหลดมา)
   useEffect(() => {
@@ -418,23 +424,23 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   };
 
   const reactions = [
-    { name: 'ถูกใจ', icon: ThumbsUp, color: '#3b82f6', bg: '#eff6ff' },
-    { name: 'รัก', icon: Heart, color: '#ef4444', bg: '#fef2f2' },
-    { name: 'ฮ่าๆ', icon: Laugh, color: '#f59e0b', bg: '#fffbeb' },
-    { name: 'เฉยๆ', icon: Annoyed, color: '#f97316', bg: '#fff7ed' },
-    { name: 'เศร้า', icon: Frown, color: '#a855f7', bg: '#faf5ff' },
-    { name: 'โกรธ', icon: Angry, color: '#b91c1c', bg: '#fef2f2' },
+    { key: 'like',     name: t('reaction.like'),    icon: ThumbsUp, color: '#3b82f6', bg: '#eff6ff' },
+    { key: 'love',     name: t('reaction.love'),    icon: Heart,    color: '#ef4444', bg: '#fef2f2' },
+    { key: 'haha',     name: t('reaction.haha'),    icon: Laugh,    color: '#f59e0b', bg: '#fffbeb' },
+    { key: 'meh',      name: t('reaction.meh'),     icon: Annoyed,  color: '#f97316', bg: '#fff7ed' },
+    { key: 'sad',      name: t('reaction.sad'),     icon: Frown,    color: '#a855f7', bg: '#faf5ff' },
+    { key: 'angry',    name: t('reaction.angry'),   icon: Angry,    color: '#b91c1c', bg: '#fef2f2' },
   ];
 
-  const handleReactionToggle = (reactionName: string) => {
+  const handleReactionToggle = (reactionKey: string) => {
     setReactionsCount(prev => {
       const newCount = { ...prev };
-      if (selectedReaction === reactionName) {
-        newCount[reactionName] = (newCount[reactionName] || 1) - 1;
+      if (selectedReaction === reactionKey) {
+        newCount[reactionKey] = (newCount[reactionKey] || 1) - 1;
         setSelectedReaction(null);
         setReactedUsers(prevUsers => ({
           ...prevUsers,
-          [reactionName]: (prevUsers[reactionName] || []).filter(n => n !== Global.user.name),
+          [reactionKey]: (prevUsers[reactionKey] || []).filter(n => n !== Global.user.name),
         }));
         onReact?.(null);
       } else {
@@ -445,13 +451,13 @@ export const FeedItem: React.FC<FeedItemProps> = ({
             [selectedReaction]: (prevUsers[selectedReaction] || []).filter(n => n !== Global.user.name),
           }));
         }
-        newCount[reactionName] = (newCount[reactionName] || 0) + 1;
-        setSelectedReaction(reactionName);
+        newCount[reactionKey] = (newCount[reactionKey] || 0) + 1;
+        setSelectedReaction(reactionKey);
         setReactedUsers(prevUsers => ({
           ...prevUsers,
-          [reactionName]: [...(prevUsers[reactionName] || []), Global.user.name],
+          [reactionKey]: [...(prevUsers[reactionKey] || []), Global.user.name],
         }));
-        onReact?.(reactionName);
+        onReact?.(reactionKey);
       }
       return newCount;
     });
@@ -459,11 +465,11 @@ export const FeedItem: React.FC<FeedItemProps> = ({
 
   const totalReactions = Object.values(reactionsCount).reduce((acc, c) => acc + (c ?? 0), 0);
   const activeReactions = Object.keys(reactionsCount)
-    .filter(name => (reactionsCount[name] ?? 0) > 0)
-    .map(name => reactions.find(r => r.name === name))
+    .filter(key => (reactionsCount[key] ?? 0) > 0)
+    .map(key => reactions.find(r => r.key === key))
     .filter((r): r is (typeof reactions)[0] => !!r);
 
-  const currentReaction = reactions.find(r => r.name === selectedReaction);
+  const currentReaction = reactions.find(r => r.key === selectedReaction);
 
   return (
     <motion.div
@@ -491,11 +497,11 @@ export const FeedItem: React.FC<FeedItemProps> = ({
               </span>
               {feeling && (
                 <span className="text-gray-400 text-sm">
-                  กำลังรู้สึก <span className="text-gray-600 font-medium">{feeling}</span>
+                  {t('post.feeling')} <span className="text-gray-600 font-medium">{feeling}</span>
                 </span>
               )}
             </div>
-            <div className="text-xs text-gray-400 mt-0.5">{formatRelativeTime(createdAt)}</div>
+            <div className="text-xs text-gray-400 mt-0.5">{formatRelativeTime(createdAt, t, lang)}</div>
           </div>
         </div>
         <div className="relative">
@@ -522,16 +528,16 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                         onClick={() => { setShowPostMenu(false); setEditPostText(postText ?? ''); setEditingPost(true); }}
                         className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                       >
-                        <Reply size={14} /> แก้ไขโพสต์
+                        <Reply size={14} /> {t('post.editPost')}
                       </button>
                       <button
                         onClick={() => {
                           setShowPostMenu(false);
-                          modal.confirm('ต้องการลบโพสต์นี้ใช่หรือไม่?', () => { if (postId) net.deletePost(Number(postId)); }, 'ลบโพสต์');
+                          modal.confirm(t('post.deleteConfirmFeed'), () => { if (postId) net.deletePost(Number(postId)); }, t('post.deletePost'));
                         }}
                         className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
                       >
-                        <X size={14} /> ลบโพสต์
+                        <X size={14} /> {t('post.deletePost')}
                       </button>
                     </>
                   )}
@@ -539,7 +545,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                     onClick={() => { setShowPostMenu(false); setShowReportModal(true); }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                   >
-                    <Flag size={14} /> รายงาน
+                    <Flag size={14} /> {t('post.reportPost')}
                   </button>
                 </motion.div>
               </>
@@ -560,8 +566,8 @@ export const FeedItem: React.FC<FeedItemProps> = ({
               rows={3}
             />
             <div className="flex gap-2 mt-2">
-              <button onClick={() => { if (postId) net.editPost(Number(postId), editPostText); setEditingPost(false); }} className="px-4 py-1.5 bg-[#5B65F2] text-white text-xs font-medium rounded-lg hover:bg-[#4a54e1] transition-colors">บันทึก</button>
-              <button onClick={() => setEditingPost(false)} className="px-4 py-1.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-200 transition-colors">ยกเลิก</button>
+              <button onClick={() => { if (postId) net.editPost(Number(postId), editPostText); setEditingPost(false); }} className="px-4 py-1.5 bg-[#5B65F2] text-white text-xs font-medium rounded-lg hover:bg-[#4a54e1] transition-colors">{t('common.save')}</button>
+              <button onClick={() => setEditingPost(false)} className="px-4 py-1.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-200 transition-colors">{t('common.cancel')}</button>
             </div>
           </div>
         ) : postText ? (
@@ -599,7 +605,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                   onMouseEnter={(e) => {
                     if (window.innerWidth > 768) {
                       const popupData = activeReactions
-                        .map(r => ({ type: r.name, color: r.color, users: reactedUsers[r.name] ?? [] }))
+                        .map(r => ({ type: r.name, color: r.color, users: reactedUsers[r.key] ?? [] }))
                         .filter(d => d.users.length > 0);
                       if (popupData.length > 0) {
                         setLikedByPopupData(popupData);
@@ -619,9 +625,8 @@ export const FeedItem: React.FC<FeedItemProps> = ({
             })}
           </div>
           <span className="text-xs text-gray-500 hover:underline cursor-pointer">
-            {totalReactions === 1 ? Object.values(reactedUsers).flat()[0] : `${totalReactions} คน`}
-          </span>
-        </div>
+            {totalReactions === 1 ? Object.values(reactedUsers).flat()[0] : t('post.commentCount').replace('{n}', String(totalReactions))}
+          </span>        </div>
       )}
 
       {/* Action Buttons */}
@@ -652,14 +657,14 @@ export const FeedItem: React.FC<FeedItemProps> = ({
               >
                 {reactions.map((reaction) => {
                   const Icon = reaction.icon;
-                  const isActive = selectedReaction === reaction.name;
+                  const isActive = selectedReaction === reaction.key;
                   return (
                     <button
-                      key={reaction.name}
+                      key={reaction.key}
                       title={reaction.name}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleReactionToggle(reaction.name);
+                        handleReactionToggle(reaction.key);
                         setShowReactionPicker(false);
                       }}
                       className={`p-2 rounded-full transition-all hover:scale-125 active:scale-110 ${isActive ? 'scale-110' : ''}`}
@@ -684,7 +689,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
             }`}
             onClick={() => {
               if (window.innerWidth <= 768) setShowReactionPicker(!showReactionPicker);
-              else handleReactionToggle('ถูกใจ');
+              else handleReactionToggle('like');
             }}
           >
             {currentReaction ? (
@@ -692,7 +697,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
             ) : (
               <ThumbsUp size={18} />
             )}
-            <span>{selectedReaction || 'ถูกใจ'}</span>
+            <span>{currentReaction ? currentReaction.name : t('reaction.like')}</span>
           </button>
         </div>
 
@@ -701,7 +706,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
           className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors text-sm font-semibold"
         >
           <MessageCircle size={18} />
-          <span>แสดงความเห็น</span>
+          <span>{t('post.comment')}</span>
         </button>
 
         <button
@@ -709,7 +714,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
           className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors text-sm font-semibold"
         >
           <Share2 size={18} />
-          <span>แชร์</span>
+          <span>{t('post.share')}</span>
         </button>
 
         <button
@@ -721,7 +726,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
           className={`flex items-center justify-center py-2 px-3 rounded-xl transition-colors text-sm font-semibold ${
             bookmarked ? 'text-[#5B65F2]' : 'text-gray-500 hover:bg-gray-50'
           }`}
-          title={bookmarked ? 'ยกเลิกบันทึก' : 'บันทึกโพสต์'}
+          title={bookmarked ? t('post.unsavePost') : t('post.savePost')}
         >
           <Bookmark size={18} fill={bookmarked ? 'currentColor' : 'none'} />
         </button>
@@ -810,11 +815,11 @@ export const FeedItem: React.FC<FeedItemProps> = ({
             >
               <div className="flex items-center gap-2 mb-4">
                 <Flag size={18} className="text-red-500" />
-                <span className="font-bold text-gray-900">รายงานโพสต์</span>
+                <span className="font-bold text-gray-900">{t('post.reportPost')}</span>
               </div>
-              <p className="text-sm text-gray-500 mb-3">เลือกเหตุผลที่รายงาน</p>
+              <p className="text-sm text-gray-500 mb-3">{t('common.search')}</p>
               <div className="space-y-2 mb-4">
-                {['เนื้อหาไม่เหมาะสม', 'สแปมหรือโฆษณา', 'ข้อมูลเท็จ', 'การคุกคามหรือการกลั่นแกล้ง', 'อื่นๆ'].map(reason => (
+                {t('post.reportReasons').split('|').map(reason => (
                   <button
                     key={reason}
                     onClick={() => setReportReason(reason)}
@@ -827,12 +832,12 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                     {reason}
                   </button>
                 ))}
-                {reportReason === 'อื่นๆ' && (
+                {reportReason === t('post.reportOther') && (
                   <textarea
                     autoFocus
                     value={reportCustomText}
                     onChange={e => setReportCustomText(e.target.value)}
-                    placeholder="ระบุเหตุผล..."
+                    placeholder={t('post.reportOtherPlaceholder')}
                     rows={3}
                     className="w-full px-3 py-2 text-sm border border-red-200 rounded-xl bg-red-50/50 focus:outline-none focus:ring-2 focus:ring-red-200 resize-none text-gray-700 placeholder-gray-400"
                   />
@@ -843,13 +848,14 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                   onClick={() => { setShowReportModal(false); setReportReason(''); setReportCustomText(''); }}
                   className="flex-1 py-2.5 rounded-xl text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
                 >
-                  ยกเลิก
+                  {t('common.cancel')}
                 </button>
                 <button
-                  disabled={!reportReason || (reportReason === 'อื่นๆ' && !reportCustomText.trim())}
+                  disabled={!reportReason || (reportReason === t('post.reportOther') && !reportCustomText.trim())}
                   onClick={() => {
                     if (postId && reportReason) {
-                      const finalReason = reportReason === 'อื่นๆ' ? `อื่นๆ: ${reportCustomText.trim()}` : reportReason;
+                      const other = t('post.reportOther');
+                      const finalReason = reportReason === other ? `${other}: ${reportCustomText.trim()}` : reportReason;
                       net.reportPost(Number(postId), finalReason);
                       setShowReportModal(false);
                       setReportReason('');
@@ -859,7 +865,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                   }}
                   className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  ส่งรายงาน
+                  {t('post.submitReport')}
                 </button>
               </div>
             </motion.div>

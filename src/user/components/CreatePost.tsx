@@ -4,6 +4,7 @@ import { VideoPlayer } from './VideoPlayer';
 import { EmojiTextarea } from './emoji/EmojiTextarea';
 import { Global } from '../Global';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useDictionary } from '../../utils/dictionary';
 
 interface CreatePostProps {
   onPost?: (postData: {
@@ -18,6 +19,7 @@ interface CreatePostProps {
 }
 
 export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
+  const { t } = useDictionary();
   const [text, setText] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -33,21 +35,21 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const feelings = [
-    { name: 'มีความสุข', icon: '😊' },
-    { name: 'ตื่นเต้น', icon: '🤩' },
-    { name: 'เศร้า', icon: '😢' },
-    { name: 'ง่วงนอน', icon: '😴' },
-    { name: 'โกรธ', icon: '😡' },
-    { name: 'ประหลาดใจ', icon: '😮' },
+    { name: t('feeling.happy'), icon: '😊' },
+    { name: t('feeling.excited'), icon: '🤩' },
+    { name: t('feeling.sad'), icon: '😢' },
+    { name: t('feeling.sleepy'), icon: '😴' },
+    { name: t('feeling.angry'), icon: '😡' },
+    { name: t('feeling.surprised'), icon: '😮' },
   ];
 
   const stickers = [
-    "https://api.dicebear.com/7.x/bottts/svg?seed=sticker1",
-    "https://api.dicebear.com/7.x/bottts/svg?seed=sticker2",
-    "https://api.dicebear.com/7.x/bottts/svg?seed=sticker3",
-    "https://api.dicebear.com/7.x/bottts/svg?seed=sticker4",
-    "https://api.dicebear.com/7.x/bottts/svg?seed=sticker5",
-    "https://api.dicebear.com/7.x/bottts/svg?seed=sticker6",
+    '/media/0/stickers/sticker1.svg',
+    '/media/0/stickers/sticker2.svg',
+    '/media/0/stickers/sticker3.svg',
+    '/media/0/stickers/sticker4.svg',
+    '/media/0/stickers/sticker5.svg',
+    '/media/0/stickers/sticker6.svg',
   ];
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,8 +129,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
                     exit={{ opacity: 0, scale: 0.8 }}
                     className="flex items-center gap-1 bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded-full text-xs font-medium border border-amber-100"
                   >
-                    <span>กำลังรู้สึก {feeling}</span>
-                    <button onClick={() => setFeeling(null)} className="hover:text-amber-900 ml-0.5">
+                    <span>กำลังรู้สึก {feeling}</span>                    <button onClick={() => setFeeling(null)} className="hover:text-amber-900 ml-0.5">
                       <X size={11} />
                     </button>
                   </motion.div>
@@ -137,11 +138,11 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
             </div>
 
             <EmojiTextarea
-              placeholder={`${Global.user.name} คิดอะไรอยู่...`}
+              placeholder={`${Global.user.name} ${t('post.placeholder')}`}
               value={text}
               onChange={setText}
               className="w-full bg-gray-50 hover:bg-gray-100 focus:bg-gray-100 py-2.5 px-4 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5B65F2]/15 transition-all duration-200 overflow-hidden text-[15px] leading-relaxed"
-              style={{ height: isExpanded || hasContent ? '100px' : '42px' }}
+              style={{ minHeight: isExpanded || hasContent ? '100px' : '42px' }}
               onFocus={() => setIsExpanded(true)}
               onBlur={() => { if (!hasContent) setIsExpanded(false); }}
             />
@@ -208,7 +209,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
           >
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-bold text-gray-700">คุณกำลังรู้สึกอย่างไร?</span>
+                <span className="text-sm font-bold text-gray-700">{t('post.howFeeling')}</span>
                 <button onClick={() => setShowFeelingPicker(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
                   <X size={16} />
                 </button>
@@ -237,7 +238,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
                 <Smile size={16} className="text-amber-400 flex-shrink-0" />
                 <input
                   type="text"
-                  placeholder="ความรู้สึกอื่นๆ..."
+                  placeholder={t('post.otherFeeling')}
                   value={customFeeling}
                   onChange={(e) => setCustomFeeling(e.target.value)}
                   onKeyDown={(e) => {
@@ -260,7 +261,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
                     }}
                     className="text-amber-600 hover:text-amber-700 font-bold text-sm px-2"
                   >
-                    ตกลง
+                    {t('common.ok')}
                   </button>
                 )}
               </div>
@@ -280,7 +281,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
           >
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-bold text-gray-700">เลือกสติกเกอร์</span>
+                <span className="text-sm font-bold text-gray-700">{t('post.chooseSticker')}</span>
                 <button onClick={() => setShowStickerPicker(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
                   <X size={16} />
                 </button>
@@ -315,21 +316,21 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
           className="flex items-center justify-center gap-1.5 py-3 hover:bg-gray-50 transition-colors text-gray-500 group"
         >
           <ImageIcon size={18} className="text-green-500 group-hover:scale-110 transition-transform" />
-          <span className="text-xs font-medium hidden sm:block">รูป/วิดีโอ</span>
+          <span className="text-xs font-medium hidden sm:block">{t('post.photoVideo')}</span>
         </button>
         <button
           onClick={() => { setShowStickerPicker(!showStickerPicker); setShowFeelingPicker(false); }}
           className={`flex items-center justify-center gap-1.5 py-3 hover:bg-gray-50 transition-colors text-gray-500 group ${showStickerPicker ? 'bg-purple-50' : ''}`}
         >
           <StickyNote size={18} className="text-purple-500 group-hover:scale-110 transition-transform" />
-          <span className="text-xs font-medium hidden sm:block">สติกเกอร์</span>
+          <span className="text-xs font-medium hidden sm:block">{t('post.sticker')}</span>
         </button>
         <button
           onClick={() => { setShowFeelingPicker(!showFeelingPicker); setShowStickerPicker(false); }}
           className={`flex items-center justify-center gap-1.5 py-3 hover:bg-gray-50 transition-colors text-gray-500 group ${showFeelingPicker ? 'bg-amber-50' : ''}`}
         >
           <Smile size={18} className="text-amber-500 group-hover:scale-110 transition-transform" />
-          <span className="text-xs font-medium hidden sm:block">ความรู้สึก</span>
+          <span className="text-xs font-medium hidden sm:block">{t('post.feeling')}</span>
         </button>
         <button
           onClick={handlePost}
@@ -345,7 +346,7 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
           ) : (
             <Send size={16} />
           )}
-          <span className="text-xs font-medium hidden sm:block">{posting ? 'กำลังโพสต์...' : 'โพสต์'}</span>
+          <span className="text-xs font-medium hidden sm:block">{posting ? t('post.posting') : t('post.create')}</span>
         </button>
       </div>
       {/* Upload progress bar */}

@@ -18,12 +18,12 @@ interface CommentInputProps {
 }
 
 const STICKERS = [
-  "https://api.dicebear.com/7.x/bottts/svg?seed=sticker1",
-  "https://api.dicebear.com/7.x/bottts/svg?seed=sticker2",
-  "https://api.dicebear.com/7.x/bottts/svg?seed=sticker3",
-  "https://api.dicebear.com/7.x/bottts/svg?seed=sticker4",
-  "https://api.dicebear.com/7.x/bottts/svg?seed=sticker5",
-  "https://api.dicebear.com/7.x/bottts/svg?seed=sticker6",
+  '/stickers/sticker1.svg',
+  '/stickers/sticker2.svg',
+  '/stickers/sticker3.svg',
+  '/stickers/sticker4.svg',
+  '/stickers/sticker5.svg',
+  '/stickers/sticker6.svg',
 ];
 
 export const CommentInput: React.FC<CommentInputProps> = ({

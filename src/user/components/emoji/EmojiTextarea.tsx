@@ -5,10 +5,12 @@ interface EmojiTextareaProps {
   value: string;
   onChange: (val: string) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onFocus?: () => void;
   onBlur?: () => void;
   placeholder?: string;
   className?: string;
   rows?: number;
+  style?: React.CSSProperties;
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
@@ -31,10 +33,12 @@ export const EmojiTextarea: React.FC<EmojiTextareaProps> = ({
   value,
   onChange,
   onKeyDown,
+  onFocus,
   onBlur,
   placeholder,
   className = '',
   rows = 1,
+  style = {},
   textareaRef: externalRef,
 }) => {
   const internalRef = useRef<HTMLTextAreaElement>(null);
@@ -61,7 +65,7 @@ export const EmojiTextarea: React.FC<EmojiTextareaProps> = ({
     : `<span style="color:#9ca3af">${placeholder ?? ''}</span>`;
 
   return (
-    <div className="relative flex-1">
+    <div className="relative flex-1" style={style}>
       {/* Overlay — แสดง emoji */}
       <div
         ref={overlayRef}
@@ -75,12 +79,13 @@ export const EmojiTextarea: React.FC<EmojiTextareaProps> = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
+        onFocus={onFocus}
         onBlur={onBlur}
         onScroll={syncScroll}
         placeholder=""
         rows={rows}
         className={`relative w-full bg-transparent border-none focus:outline-none resize-none overflow-hidden leading-relaxed text-sm py-0.5 ${className}`}
-        style={{ color: 'transparent', caretColor: '#374151', WebkitTextFillColor: 'transparent' }}
+        style={{ ...style, color: 'transparent', caretColor: '#374151', WebkitTextFillColor: 'transparent' }}
       />
     </div>
   );

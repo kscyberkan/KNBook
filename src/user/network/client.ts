@@ -425,6 +425,12 @@ class NetworkClient {
         this.send(p);
     }
 
+    updateLang(lang: string): void {
+        const p = new Packet(PacketCS.UPDATE_LANG);
+        p.writeString(lang);
+        this.send(p);
+    }
+
     // ─── Upload helpers ───────────────────────────────────────────────────────
     async uploadProfileImage(file: File, userId: string): Promise<string> {
         const url = await uploadFile(file, 'profile', userId);

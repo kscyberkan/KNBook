@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Users, FileText, Flag, Wifi, TrendingUp, UserCheck } from 'lucide-react';
+import { useDictionary } from '../../utils/dictionary';
 
 interface Stats {
   totalUsers: number; newUsersToday: number;
@@ -50,6 +51,7 @@ export default function StatsPage({ api, token }: Props) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [onlineHistory, setOnlineHistory] = useState<number[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const { t } = useDictionary();
 
   const fetchStats = async () => {
     const res = await api('/stats');
@@ -73,10 +75,10 @@ export default function StatsPage({ api, token }: Props) {
   );
 
   const cards = [
-    { label: 'ผู้ใช้ทั้งหมด', value: stats.totalUsers, sub: `+${stats.newUsersToday} วันนี้`, icon: <Users size={20} />, color: '#5B65F2', bg: '#EEF0FF' },
-    { label: 'Online ตอนนี้', value: stats.onlineCount, sub: 'realtime', icon: <Wifi size={20} />, color: '#10b981', bg: '#d1fae5' },
-    { label: 'โพสต์ทั้งหมด', value: stats.totalPosts, sub: `+${stats.newPostsToday} วันนี้`, icon: <FileText size={20} />, color: '#f59e0b', bg: '#fef3c7' },
-    { label: 'รายงานวันนี้', value: stats.totalReports, sub: 'รอตรวจสอบ', icon: <Flag size={20} />, color: '#ef4444', bg: '#fee2e2' },
+    { label: t('admin.totalUsers'), value: stats.totalUsers, sub: t('admin.newToday').replace('{n}', String(stats.newUsersToday)), icon: <Users size={20} />, color: '#5B65F2', bg: '#EEF0FF', isOnline: false },
+    { label: t('admin.onlineNow'), value: stats.onlineCount, sub: t('admin.realtime'), icon: <Wifi size={20} />, color: '#10b981', bg: '#d1fae5', isOnline: true },
+    { label: t('admin.totalPosts'), value: stats.totalPosts, sub: t('admin.newToday').replace('{n}', String(stats.newPostsToday)), icon: <FileText size={20} />, color: '#f59e0b', bg: '#fef3c7', isOnline: false },
+    { label: t('admin.reportsToday'), value: stats.totalReports, sub: t('admin.waitingReview'), icon: <Flag size={20} />, color: '#ef4444', bg: '#fee2e2', isOnline: false },
   ];
 
   const maxOnline = Math.max(...onlineHistory, 1);
@@ -91,7 +93,7 @@ export default function StatsPage({ api, token }: Props) {
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: c.bg, color: c.color }}>
                 {c.icon}
               </div>
-              {c.label === 'Online ตอนนี้' && (
+              {c.isOnline && (
                 <span className="flex items-center gap-1 text-[10px] text-green-600 font-medium">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                   LIVE
@@ -109,12 +111,12 @@ export default function StatsPage({ api, token }: Props) {
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="font-bold text-gray-900 text-sm">Online Users (Realtime)</h2>
-            <p className="text-xs text-gray-400 mt-0.5">อัปเดตทุก 5 วินาที — ย้อนหลัง 30 จุด</p>
+            <h2 className="font-bold text-gray-900 text-sm">{t('admin.onlineUsersRealtime')}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{t('admin.realtimeUpdate')}</p>
           </div>
           <div className="flex items-center gap-1.5 text-green-600 text-sm font-bold">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            {stats.onlineCount} คน
+            {stats.onlineCount} {t('admin.userCol')}
           </div>
         </div>
         <div className="flex items-end gap-0.5 h-24">
@@ -127,7 +129,7 @@ export default function StatsPage({ api, token }: Props) {
                 backgroundColor: i === onlineHistory.length - 1 ? '#10b981' : '#5B65F2',
                 opacity: 0.3 + (i / onlineHistory.length) * 0.7,
               }}
-              title={`${v} คน`}
+              title={`${v} ${t('admin.userCol')}`}
             />
           ))}
         </div>
@@ -138,9 +140,9 @@ export default function StatsPage({ api, token }: Props) {
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-2 mb-4">
             <UserCheck size={16} className="text-[#5B65F2]" />
-            <h2 className="font-bold text-gray-900 text-sm">Activity ย้อนหลัง 7 วัน</h2>
+            <h2 className="font-bold text-gray-900 text-sm">{t('admin.activityLast7Days')}</h2>
           </div>
-          <MiniChart data={stats.dailyLogins} color="#5B65F2" label="active users" />
+          <MiniChart data={stats.dailyLogins} color="#5B65F2" label={t('admin.activeUsers')} />
           <div className="flex justify-between mt-2">
             {stats.dailyLogins.map((d, i) => (
               <div key={i} className="flex-1 text-center text-[9px] text-gray-400">
@@ -153,9 +155,9 @@ export default function StatsPage({ api, token }: Props) {
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp size={16} className="text-[#f59e0b]" />
-            <h2 className="font-bold text-gray-900 text-sm">โพสต์ย้อนหลัง 7 วัน</h2>
+            <h2 className="font-bold text-gray-900 text-sm">{t('admin.totalPosts')} ย้อนหลัง 7 วัน</h2>
           </div>
-          <MiniChart data={stats.weeklyPosts} color="#f59e0b" label="โพสต์" />
+          <MiniChart data={stats.weeklyPosts} color="#f59e0b" label={t('admin.posts')} />
           <div className="flex justify-between mt-2">
             {stats.weeklyPosts.map((d, i) => (
               <div key={i} className="flex-1 text-center text-[9px] text-gray-400">

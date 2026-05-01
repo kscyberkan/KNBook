@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Trash2, ChevronLeft, ChevronRight, MessageCircle, Heart, Flag, Eye, RotateCcw } from 'lucide-react';
 import { modal } from '../../components/Modal';
 import PostDetailModal from '../components/PostDetailModal';
+import { useDictionary } from '../../utils/dictionary';
 
 interface Post {
   id: number; text: string | null; imageUrl: string | null; videoUrl: string | null;
@@ -19,6 +20,7 @@ export default function PostsPage({ api }: Props) {
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
+  const { t } = useDictionary();
 
   const fetchPosts = async (p = page) => {
     setLoading(true);
@@ -32,16 +34,16 @@ export default function PostsPage({ api }: Props) {
 
   const deletePost = (post: Post, e: React.MouseEvent) => {
     e.stopPropagation();
-    modal.confirm(`ต้องการลบโพสต์ของ "${post.user.name}" ใช่หรือไม่?`, async () => {
+    modal.confirm(t('admin.deletePostConfirm').replace('{name}', post.user.name), async () => {
       await api('/posts/delete', { method: 'POST', body: JSON.stringify({ postId: post.id }) });
       fetchPosts(page);
-    }, 'ลบโพสต์');
+    }, t('admin.deletePost'));
   };
 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl px-4 py-3 shadow-sm border border-gray-100">
-        <p className="text-xs text-gray-400">โพสต์ทั้งหมด <span className="font-semibold text-gray-700">{total.toLocaleString()}</span> รายการ · คลิกเพื่อดูรายละเอียด</p>
+        <p className="text-xs text-gray-400">{t('admin.totalPostsCount').replace('{n}', total.toLocaleString())}</p>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -68,11 +70,11 @@ export default function PostsPage({ api }: Props) {
                       {new Date(post.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </span>
                     {!post.isActive && (
-                      <span className="text-[11px] text-gray-500 font-medium bg-gray-100 px-1.5 py-0.5 rounded-full">ถูกลบแล้ว</span>
+                      <span className="text-[11px] text-gray-500 font-medium bg-gray-100 px-1.5 py-0.5 rounded-full">{t('admin.deleted')}</span>
                     )}
                     {post._count.reports > 0 && (
                       <span className="flex items-center gap-0.5 text-[11px] text-red-500 font-medium bg-red-50 px-1.5 py-0.5 rounded-full">
-                        <Flag size={10} /> {post._count.reports} รายงาน
+                        <Flag size={10} /> {post._count.reports} {t('admin.reports')}
                       </span>
                     )}
                   </div>
@@ -86,16 +88,16 @@ export default function PostsPage({ api }: Props) {
                     <span className="flex items-center gap-1"><Heart size={11} /> {post._count.reactions}</span>
                     <span className="flex items-center gap-1"><MessageCircle size={11} /> {post._count.comments}</span>
                     <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity text-[#5B65F2]">
-                      <Eye size={11} /> ดูรายละเอียด
+                      <Eye size={11} /> {t('admin.viewDetail')}
                     </span>
                   </div>
                 </div>
                 <div className="flex gap-1 flex-shrink-0">
                   {!post.isActive ? (
                     <button
-                      onClick={(e) => { e.stopPropagation(); modal.confirm(`กู้คืนโพสต์ของ "${post.user.name}" ใช่หรือไม่?`, async () => { await api('/posts/restore', { method: 'POST', body: JSON.stringify({ postId: post.id }) }); fetchPosts(page); }, 'กู้คืน'); }}
+                      onClick={(e) => { e.stopPropagation(); modal.confirm(t('admin.restorePostConfirm').replace('{name}', post.user.name), async () => { await api('/posts/restore', { method: 'POST', body: JSON.stringify({ postId: post.id }) }); fetchPosts(page); }, t('admin.restorePost')); }}
                       className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="กู้คืนโพสต์"
+                      title={t('admin.restorePost')}
                     >
                       <RotateCcw size={16} />
                     </button>
@@ -103,7 +105,7 @@ export default function PostsPage({ api }: Props) {
                     <button
                       onClick={(e) => deletePost(post, e)}
                       className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="ลบโพสต์"
+                      title={t('admin.deletePost')}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -116,7 +118,7 @@ export default function PostsPage({ api }: Props) {
 
         {pages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-            <span className="text-xs text-gray-400">หน้า {page} / {pages}</span>
+            <span className="text-xs text-gray-400">{t('admin.page.posts').replace('{n}', String(page)).replace('{total}', String(pages))}</span>
             <div className="flex gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                 className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-colors">
