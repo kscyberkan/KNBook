@@ -1,6 +1,6 @@
 # KN Book
 
-แพลตฟอร์ม Social Media แบบ Full-stack ที่รองรับ Real-time messaging, Video/Audio calls, Group chat, Notifications และ Admin panel รองรับ 4 ภาษา (ไทย, อังกฤษ, จีน, ญี่ปุ่น)
+แพลตฟอร์ม Social Media แบบ Full-stack ที่รองรับ Real-time messaging, Video/Audio calls, Group chat, Notifications และ Admin panel รองรับ 4 ภาษา (ไทย, อังกฤษ, จีน, ญี่ปุ่น) ด้วย kiro AI
 
 ---
 
