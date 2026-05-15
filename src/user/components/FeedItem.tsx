@@ -656,6 +656,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
           }}
           onMouseLeave={() => {
             if (window.innerWidth > 768) {
+
               reactionPickerTimeoutRef.current = setTimeout(() => setShowReactionPicker(false), 400);
             }
           }}

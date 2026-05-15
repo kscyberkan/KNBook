@@ -113,7 +113,10 @@ const server = serve({
             }
 
             return Response.json(result, {
-                headers: { 'Cache-Control': 'public, max-age=60' },
+                headers: { 
+                    'Cache-Control': 'public, max-age=60',
+                    'Access-Control-Allow-Origin': '*',
+                },
             });
         },
 
@@ -178,6 +181,8 @@ const server = serve({
         hmr: true,
         console: true,
     },
+    port: 3000,
+    hostname: '0.0.0.0',
 });
 
 console.log(`🚀 Server running at ${server.url}`);

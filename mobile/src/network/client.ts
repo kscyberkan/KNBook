@@ -1,0 +1,625 @@
+import Packet from './packet';
+import { PacketCS, PacketSC } from '../../../src/user/network/packetList';
+import { CONFIG } from '../config';
+
+type Handler = (packet: Packet) => void;
+
+class NetworkClient {
+    private ws: WebSocket | null = null;
+    private handlers = new Map<number, Handler[]>();
+    private queue: Uint8Array[] = [];
+    private reconnectDelay = 1000;
+    private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    private serverUrl: string = '';
+    private statusListeners: ((status: 'connected' | 'disconnected' | 'connecting' | 'error') => void)[] = [];
+
+    onStatusChange(listener: (status: 'connected' | 'disconnected' | 'connecting' | 'error') => void) {
+        this.statusListeners.push(listener);
+        return () => {
+            this.statusListeners = this.statusListeners.filter(l => l !== listener);
+        };
+    }
+
+    private emitStatus(status: 'connected' | 'disconnected' | 'connecting' | 'error') {
+        this.statusListeners.forEach(l => l(status));
+    }
+
+    connect(url?: string, token?: string): void {
+        if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
+        this.serverUrl = url || CONFIG.WS_URL;
+        console.log('[WS] connecting to', this.serverUrl);
+        this.emitStatus('connecting');
+
+        try {
+            this.ws = new WebSocket(this.serverUrl);
+            this.ws.binaryType = 'arraybuffer';
+
+            this.ws.onopen = () => {
+                console.log('[WS] connected');
+                this.emitStatus('connected');
+                this.reconnectDelay = 1000;
+                if (token) {
+                    const p = new Packet(PacketCS.RESUME);
+                    p.writeString(token);
+                    this.ws!.send(p.toBuffer());
+                } else {
+                    this.queue.forEach(buf => this.ws!.send(buf));
+                    this.queue = [];
+                }
+            };
+
+            this.ws.onmessage = (e: MessageEvent) => {
+                const buf = e.data instanceof ArrayBuffer
+                    ? new Uint8Array(e.data)
+                    : e.data instanceof Uint8Array
+                    ? e.data
+                    : new Uint8Array(0);
+                
+                if (buf.length < 4) return;
+
+                const packet = new Packet(0);
+                packet.forceCopyBuffer(buf);
+                const id = packet.getPacketID();
+                console.log('[WS] packet received, ID:', id, 'Size:', buf.length);
+
+                if (id === PacketSC.RESUME_OK) {
+                    this.queue.forEach(buf => this.ws!.send(buf));
+                    this.queue = [];
+                    this.handlers.get(PacketSC.RESUME_OK)?.forEach(h => h(packet));
+                    return;
+                }
+
+                if (id === PacketSC.ERROR) {
+                    const msg = packet.readString();
+                    console.warn('[WS] server error:', msg);
+                    return;
+                }
+
+                if (id === PacketSC.FORCE_LOGOUT) {
+                    this.ws?.close();
+                    this.ws = null;
+                    this.handlers.get(PacketSC.FORCE_LOGOUT)?.forEach(h => h(packet));
+                    return;
+                }
+
+                this.handlers.get(id)?.forEach(h => {
+                    const fresh = new Packet(0);
+                    fresh.forceCopyBuffer(buf.slice());
+                    h(fresh);
+                });
+            };
+
+            this.ws.onerror = (e) => {
+                console.warn('[WS] Error Event:', JSON.stringify(e));
+                this.emitStatus('error');
+            };
+
+            this.ws.onclose = (e) => {
+                console.log('[WS] closed. Code:', e.code, 'Reason:', e.reason);
+                this.emitStatus('disconnected');
+                if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+                this.reconnectTimer = setTimeout(() => {
+                    this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30_000);
+                    console.log('[WS] Attempting reconnect...');
+                    this.connect(this.serverUrl, token);
+                }, this.reconnectDelay);
+            };
+        } catch (err) {
+            console.error('[WS] setup failed:', err);
+            this.emitStatus('error');
+        }
+    }
+
+    send(packet: Packet): void {
+        const buf = packet.toBuffer();
+        if (this.ws?.readyState === WebSocket.OPEN) {
+            this.ws.send(buf);
+        } else {
+            console.warn('[WS] not open, queuing packet', packet.getPacketID());
+            this.queue.push(buf);
+        }
+    }
+
+    on(packetId: number, handler: Handler): () => void {
+        if (!this.handlers.has(packetId)) this.handlers.set(packetId, []);
+        this.handlers.get(packetId)!.push(handler);
+        return () => {
+            const arr = this.handlers.get(packetId);
+            if (arr) this.handlers.set(packetId, arr.filter(h => h !== handler));
+        };
+    }
+
+    // ─── Auth ────────────────────────────────────────────────────────────────
+
+    login(username: string, password: string): void {
+        const p = new Packet(PacketCS.LOGIN);
+        p.writeString(username);
+        p.writeString(password);
+        this.send(p);
+    }
+
+    register(username: string, password: string, name: string, nickname?: string, phone?: string, province?: string): void {
+        const p = new Packet(PacketCS.REGISTER);
+        p.writeString(username);
+        p.writeString(password);
+        p.writeString(name);
+        p.writeString(nickname ?? '');
+        p.writeString(phone ?? '');
+        p.writeString(province ?? '');
+        this.send(p);
+    }
+
+    logout(): void {
+        this.send(new Packet(PacketCS.LOGOUT));
+    }
+
+    // ─── Feed ────────────────────────────────────────────────────────────────
+
+    getFeed(offset = 0): void {
+        const p = new Packet(PacketCS.GET_FEED);
+        p.writeInt(offset);
+        this.send(p);
+    }
+
+    getUserPosts(userId: number, offset = 0): void {
+        const p = new Packet(PacketCS.GET_USER_POSTS);
+        p.writeInt(userId);
+        p.writeInt(offset);
+        this.send(p);
+    }
+
+    async createPost(data: {
+        text?: string;
+        imageFile?: any;
+        videoFile?: any;
+        feeling?: string | null;
+        stickerUrl?: string | null;
+        groupName?: string | null;
+        sharedFromId?: number;
+    }): Promise<void> {
+        let imageUrl = '';
+        let videoUrl = '';
+
+        if (data.imageFile) imageUrl = await uploadFile(data.imageFile, 'post');
+        if (data.videoFile) videoUrl = await uploadFile(data.videoFile, 'post');
+
+        const p = new Packet(PacketCS.CREATE_POST);
+        p.writeString(data.text ?? '');
+        p.writeString(imageUrl);
+        p.writeString(videoUrl);
+        p.writeString(data.feeling ?? '');
+        p.writeString(data.stickerUrl ?? '');
+        p.writeString(data.groupName ?? '');
+        p.writeInt(data.sharedFromId ?? 0);
+        this.send(p);
+    }
+
+    deletePost(postId: number): void {
+        const p = new Packet(PacketCS.DELETE_POST);
+        p.writeInt(postId);
+        this.send(p);
+    }
+
+    // ─── Reaction ────────────────────────────────────────────────────────────
+
+    reactPost(postId: number, type: string): void {
+        const p = new Packet(PacketCS.REACT_POST);
+        p.writeInt(postId);
+        p.writeString(type);
+        this.send(p);
+    }
+
+    unreactPost(postId: number): void {
+        const p = new Packet(PacketCS.UNREACT_POST);
+        p.writeInt(postId);
+        this.send(p);
+    }
+
+    // ─── Comment ─────────────────────────────────────────────────────────────
+
+    createComment(postId: number, text: string, imageUrl?: string, stickerUrl?: string, replyToId?: number): void {
+        const p = new Packet(PacketCS.CREATE_COMMENT);
+        p.writeInt(postId);
+        p.writeString(text);
+        p.writeString(imageUrl ?? '');
+        p.writeString(stickerUrl ?? '');
+        p.writeInt(replyToId ?? 0);
+        this.send(p);
+    }
+
+    deleteComment(commentId: number): void {
+        const p = new Packet(PacketCS.DELETE_COMMENT);
+        p.writeInt(commentId);
+        this.send(p);
+    }
+
+    editPost(postId: number, text: string): void {
+        const p = new Packet(PacketCS.EDIT_POST);
+        p.writeInt(postId);
+        p.writeString(text);
+        this.send(p);
+    }
+
+    editComment(commentId: number, text: string): void {
+        const p = new Packet(PacketCS.EDIT_COMMENT);
+        p.writeInt(commentId);
+        p.writeString(text);
+        this.send(p);
+    }
+
+    // ─── Chat ─────────────────────────────────────────────────────────────────
+
+    async sendMessage(receiverId: number, data: {
+        text?: string;
+        file?: any;
+        fileType?: 'image' | 'video' | 'file';
+    }): Promise<void> {
+        let fileUrl = '';
+        let fileName = '';
+
+        if (data.file) {
+            fileUrl  = await uploadFile(data.file, 'chat');
+            fileName = data.file.name || 'file';
+        }
+
+        const p = new Packet(PacketCS.SEND_MESSAGE);
+        p.writeInt(receiverId);
+        p.writeString(data.text ?? '');
+        p.writeString(fileUrl);
+        p.writeString(fileName);
+        p.writeString(data.fileType ?? '');
+        this.send(p);
+    }
+
+    getConversation(friendId: number, offset = 0): void {
+        const p = new Packet(PacketCS.GET_CONVERSATION);
+        p.writeInt(friendId);
+        p.writeInt(offset);
+        this.send(p);
+    }
+
+    readMessages(friendId: number): void {
+        const p = new Packet(PacketCS.READ_MESSAGES);
+        p.writeInt(friendId);
+        this.send(p);
+    }
+
+    // ─── Notification ─────────────────────────────────────────────────────────
+
+    getNotifications(): void {
+        this.send(new Packet(PacketCS.GET_NOTIFICATIONS));
+    }
+
+    markNotificationRead(id: number): void {
+        const p = new Packet(PacketCS.MARK_NOTIFICATION_READ);
+        p.writeInt(id);
+        this.send(p);
+    }
+
+    markAllNotificationsRead(): void {
+        this.send(new Packet(PacketCS.MARK_ALL_NOTIF_READ));
+    }
+
+    // ─── Friend ───────────────────────────────────────────────────────────────
+
+    getFriendStatus(targetId: number): void {
+        const p = new Packet(PacketCS.GET_FRIEND_STATUS);
+        p.writeInt(targetId);
+        this.send(p);
+    }
+
+    sendFriendRequest(targetId: number): void {
+        const p = new Packet(PacketCS.SEND_FRIEND_REQUEST);
+        p.writeInt(targetId);
+        this.send(p);
+    }
+
+    acceptFriendRequest(requesterId: number): void {
+        const p = new Packet(PacketCS.ACCEPT_FRIEND_REQUEST);
+        p.writeInt(requesterId);
+        this.send(p);
+    }
+
+    handleFriendNotif(notifId: number, fromId: number, accepted: boolean): void {
+        const p = new Packet(PacketCS.HANDLE_FRIEND_NOTIF);
+        p.writeInt(notifId);
+        p.writeInt(fromId);
+        p.writeBool(accepted);
+        this.send(p);
+    }
+
+    removeFriend(targetId: number): void {
+        const p = new Packet(PacketCS.REMOVE_FRIEND);
+        p.writeInt(targetId);
+        this.send(p);
+    }
+
+    getFriends(): void {
+        this.send(new Packet(PacketCS.GET_FRIENDS));
+    }
+
+    getFriendsPanel(): void {
+        this.send(new Packet(PacketCS.GET_FRIENDS_PANEL));
+    }
+
+    getPendingRequests(): void {
+        this.send(new Packet(PacketCS.GET_PENDING_REQUESTS));
+    }
+
+    getSentRequests(): void {
+        this.send(new Packet(PacketCS.GET_SENT_REQUESTS));
+    }
+
+    getUserById(userId: number): void {
+        const p = new Packet(PacketCS.GET_USER_BY_ID);
+        p.writeInt(userId);
+        this.send(p);
+    }
+
+    searchUsers(query: string): void {
+        const p = new Packet(PacketCS.SEARCH_USERS);
+        p.writeString(query);
+        this.send(p);
+    }
+
+    reportPost(postId: number, reason: string): void {
+        const p = new Packet(PacketCS.REPORT_POST);
+        p.writeInt(postId);
+        p.writeString(reason);
+        this.send(p);
+    }
+
+    bookmarkPost(postId: number): void {
+        const p = new Packet(PacketCS.BOOKMARK_POST);
+        p.writeInt(postId);
+        this.send(p);
+    }
+
+    unbookmarkPost(postId: number): void {
+        const p = new Packet(PacketCS.UNBOOKMARK_POST);
+        p.writeInt(postId);
+        this.send(p);
+    }
+
+    getBookmarks(offset = 0): void {
+        const p = new Packet(PacketCS.GET_BOOKMARKS);
+        p.writeInt(offset);
+        this.send(p);
+    }
+
+    getBookmarkIds(): void {
+        this.send(new Packet(PacketCS.GET_BOOKMARK_IDS));
+    }
+
+    getUnreadMessages(): void {
+        this.send(new Packet(PacketCS.GET_UNREAD_MESSAGES));
+    }
+
+    blockUser(targetId: number): void {
+        const p = new Packet(PacketCS.BLOCK_USER);
+        p.writeInt(targetId);
+        this.send(p);
+    }
+
+    unblockUser(targetId: number): void {
+        const p = new Packet(PacketCS.UNBLOCK_USER);
+        p.writeInt(targetId);
+        this.send(p);
+    }
+
+    getBlockedUsers(): void {
+        this.send(new Packet(PacketCS.GET_BLOCKED_USERS));
+    }
+
+    sendCallOffer(targetId: number, callType: 'audio' | 'video', sdp: string): void {
+        const p = new Packet(PacketCS.CALL_OFFER);
+        p.writeInt(targetId); p.writeString(callType); p.writeString(sdp);
+        this.send(p);
+    }
+
+    sendCallAnswer(targetId: number, sdp: string): void {
+        const p = new Packet(PacketCS.CALL_ANSWER);
+        p.writeInt(targetId); p.writeString(sdp);
+        this.send(p);
+    }
+
+    sendCallIce(targetId: number, candidate: string): void {
+        const p = new Packet(PacketCS.CALL_ICE);
+        p.writeInt(targetId); p.writeString(candidate);
+        this.send(p);
+    }
+
+    sendCallEnd(targetId: number): void {
+        const p = new Packet(PacketCS.CALL_END);
+        p.writeInt(targetId);
+        this.send(p);
+    }
+
+    reactMessage(messageId: number, emoji: string): void {
+        const p = new Packet(PacketCS.REACT_MESSAGE);
+        p.writeInt(messageId);
+        p.writeString(emoji);
+        this.send(p);
+    }
+
+    unreactMessage(messageId: number): void {
+        const p = new Packet(PacketCS.UNREACT_MESSAGE);
+        p.writeInt(messageId);
+        this.send(p);
+    }
+
+    updateProfile(data: { name: string; nickname: string; bio: string; province: string; phone: string }): void {
+        const p = new Packet(PacketCS.UPDATE_PROFILE);
+        p.writeString(data.name);
+        p.writeString(data.nickname);
+        p.writeString(data.bio);
+        p.writeString(data.province);
+        p.writeString(data.phone);
+        this.send(p);
+    }
+
+    updateLang(lang: string): void {
+        const p = new Packet(PacketCS.UPDATE_LANG);
+        p.writeString(lang);
+        this.send(p);
+    }
+
+    // ─── Group Chat ───────────────────────────────────────────────────────────
+    createGroup(name: string, memberIds: number[]): void {
+        const p = new Packet(PacketCS.CREATE_GROUP);
+        p.writeString(name);
+        p.writeString(JSON.stringify(memberIds));
+        this.send(p);
+    }
+
+    getMyGroups(): void {
+        this.send(new Packet(PacketCS.GET_MY_GROUPS));
+    }
+
+    sendGroupMessage(groupId: number, data: { text?: string; file?: any; fileType?: 'image' | 'video' | 'file' }): void {
+        if (data.file) {
+            const source = data.fileType === 'image' ? 'post' : data.fileType === 'video' ? 'post' : 'post';
+            uploadFile(data.file, source).then(fileUrl => {
+                const p = new Packet(PacketCS.SEND_GROUP_MESSAGE);
+                p.writeInt(groupId);
+                p.writeString('');
+                p.writeString(fileUrl);
+                p.writeString(data.file!.name || 'file');
+                p.writeString(data.fileType ?? 'file');
+                this.send(p);
+            });
+            return;
+        }
+        const p = new Packet(PacketCS.SEND_GROUP_MESSAGE);
+        p.writeInt(groupId);
+        p.writeString(data.text ?? '');
+        p.writeString('');
+        p.writeString('');
+        p.writeString('');
+        this.send(p);
+    }
+
+    getGroupMessages(groupId: number, offset = 0): void {
+        const p = new Packet(PacketCS.GET_GROUP_MESSAGES);
+        p.writeInt(groupId);
+        p.writeInt(offset);
+        this.send(p);
+    }
+
+    addGroupMember(groupId: number, userId: number): void {
+        const p = new Packet(PacketCS.ADD_GROUP_MEMBER);
+        p.writeInt(groupId);
+        p.writeInt(userId);
+        this.send(p);
+    }
+
+    removeGroupMember(groupId: number, userId: number): void {
+        const p = new Packet(PacketCS.REMOVE_GROUP_MEMBER);
+        p.writeInt(groupId);
+        p.writeInt(userId);
+        this.send(p);
+    }
+
+    leaveGroup(groupId: number): void {
+        const p = new Packet(PacketCS.LEAVE_GROUP);
+        p.writeInt(groupId);
+        this.send(p);
+    }
+
+    updateGroupName(groupId: number, name: string): void {
+        const p = new Packet(PacketCS.UPDATE_GROUP_NAME);
+        p.writeInt(groupId);
+        p.writeString(name);
+        this.send(p);
+    }
+
+    deleteGroup(groupId: number): void {
+        const p = new Packet(PacketCS.DELETE_GROUP);
+        p.writeInt(groupId);
+        this.send(p);
+    }
+
+    reactGroupMessage(messageId: number, emoji: string, groupId: number): void {
+        const p = new Packet(PacketCS.REACT_GROUP_MESSAGE);
+        p.writeInt(messageId);
+        p.writeString(emoji);
+        p.writeInt(groupId);
+        this.send(p);
+    }
+
+    unreactGroupMessage(messageId: number, groupId: number): void {
+        const p = new Packet(PacketCS.UNREACT_GROUP_MESSAGE);
+        p.writeInt(messageId);
+        p.writeInt(groupId);
+        this.send(p);
+    }
+
+    // ─── Upload helpers ───────────────────────────────────────────────────────
+    async uploadProfileImage(file: any, userId: string): Promise<string> {
+        const url = await uploadFile(file, 'profile', userId);
+        const p = new Packet(PacketCS.UPDATE_PROFILE_IMAGE);
+        p.writeString(url);
+        this.send(p);
+        return url;
+    }
+
+    async uploadCoverImage(file: any, userId: string): Promise<string> {
+        const url = await uploadFile(file, 'cover', userId);
+        const p = new Packet(PacketCS.UPDATE_COVER_IMAGE);
+        p.writeString(url);
+        this.send(p);
+        return url;
+    }
+}
+
+// ─── Upload helper ────────────────────────────────────────────────────────────
+
+async function uploadFile(
+    file: any, // ใน React Native จะเป็น { uri, name, type }
+    source: 'post' | 'chat' | 'profile' | 'cover' = 'post',
+    userId?: string,
+    onProgress?: (pct: number) => void
+): Promise<string> {
+    // ใน Mobile จะข้ามการบีบอัดภาพด้วย Canvas ไปก่อน
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const form = new FormData();
+        
+        // จัดการฟอร์แมตไฟล์สำหรับ React Native
+        if (file.uri) {
+            form.append('file', {
+                uri: file.uri,
+                name: file.name || 'upload.jpg',
+                type: file.type || 'image/jpeg'
+            } as any);
+        } else {
+            form.append('file', file);
+        }
+        
+        form.append('source', source);
+        if (userId) form.append('userId', userId);
+
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                const json = JSON.parse(xhr.responseText) as { url?: string; error?: string };
+                if (json.url) resolve(json.url);
+                else reject(new Error(json.error ?? 'Upload failed'));
+            } else if (xhr.status === 413) {
+                reject(new Error('ไฟล์ใหญ่เกินไป'));
+            } else {
+                reject(new Error(`Upload failed: ${xhr.status}`));
+            }
+        };
+        xhr.onerror = () => reject(new Error('เชื่อมต่อไม่ได้ กรุณาลองใหม่'));
+        xhr.open('POST', CONFIG.API_URL + '/api/upload');
+        xhr.send(form);
+    });
+}
+
+// singleton
+const net = new NetworkClient();
+export default net;
+export { PacketSC };
