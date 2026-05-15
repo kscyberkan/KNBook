@@ -10,12 +10,13 @@ import { AnimatePresence, motion } from "framer-motion";
 
 interface FeedProps {
     onUserClick?: (user: User) => void;
-    onSharePost?: () => void;
+    onSharePost?: (post: Post) => void;
+    onPostClick?: (postId: string) => void;
 }
 
 type FeedFilter = 'all' | 'group' | 'general';
 
-function Feed({ onUserClick, onSharePost }: FeedProps) {
+function Feed({ onUserClick, onSharePost, onPostClick }: FeedProps) {
     const [posts, setPosts] = React.useState<Post[]>([]);
     const [loading, setLoading] = React.useState(true);
     const [loadingMore, setLoadingMore] = React.useState(false);
@@ -168,7 +169,7 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
 
     const handleShare = async (originalPost: Post) => {
         await net.createPost({ sharedFromId: Number(originalPost.id) });
-        onSharePost?.();
+        onSharePost?.(originalPost);
     };
 
     const handleReact = (postId: string, type: string | null) => {
@@ -369,6 +370,7 @@ function Feed({ onUserClick, onSharePost }: FeedProps) {
                                 onReact={(type) => handleReact(post.id, type)}
                                 onComment={(text, img, sticker, replyToId) => handleComment(post.id, text, img, sticker, replyToId)}
                                 onCommentUserClick={(u) => onUserClick?.(u)}
+                                onPostClick={onPostClick}
                                 initialBookmarked={bookmarkedIds.has(post.id)}
                                 onBookmark={(saved) => saved ? net.bookmarkPost(Number(post.id)) : net.unbookmarkPost(Number(post.id))}
                             />

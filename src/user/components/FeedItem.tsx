@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ThumbsUp, MessageCircle, Share2, Image as ImageIcon, StickyNote, Send, Heart, Laugh, Annoyed, Frown, Angry, MoreHorizontal, X, Reply, Flag, Bookmark, Users } from 'lucide-react';
+import { ThumbsUp, MessageCircle, Share2, Image as ImageIcon, StickyNote, Send, Heart, Laugh, Annoyed, Frown, Angry, MoreHorizontal, X, Reply, Flag, Bookmark, Users, Copy, Check } from 'lucide-react';
 import { Global } from '../Global';
 import { VideoPlayer } from './VideoPlayer';
 import { type User, type Post, type Comment } from '../../types';
@@ -33,6 +33,7 @@ interface FeedItemProps {
   onReact?: (type: string | null) => void;
   onComment?: (text: string, imageUrl?: string, stickerUrl?: string, replyToId?: string) => void;
   onCommentUserClick?: (user: User) => void;
+  onPostClick?: (postId: string) => void;
 }
 
 function SharedPost({ post, isSub, onUserClick }: { post?: Post; isSub?: boolean; onUserClick?: (user: User) => void }) {
@@ -266,6 +267,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   onReact,
   onComment,
   onCommentUserClick,
+  onPostClick,
 }) => {
   const [commentText, setCommentText] = useState('');
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -298,6 +300,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   const [reportCustomText, setReportCustomText] = useState('');
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
   const [editingPost, setEditingPost] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [editPostText, setEditPostText] = useState(postText ?? '');
   const { t, lang } = useDictionary();
 
@@ -507,7 +510,12 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                 </span>
               )}
             </div>
-            <div className="text-xs text-gray-400 mt-0.5">{formatRelativeTime(createdAt, t, lang)}</div>
+            <div 
+              className={`text-xs text-gray-400 mt-0.5 ${onPostClick ? 'hover:underline cursor-pointer' : ''}`}
+              onClick={() => postId && onPostClick?.(postId)}
+            >
+              {formatRelativeTime(createdAt, t, lang)}
+            </div>
           </div>
         </div>
         <div className="relative">
@@ -716,7 +724,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
         </button>
 
         <button
-          onClick={onShare}
+          onClick={() => setShowShareModal(true)}
           className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors text-sm font-semibold"
         >
           <Share2 size={18} />
@@ -800,6 +808,69 @@ export const FeedItem: React.FC<FeedItemProps> = ({
           <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-black/40" />
         </div>
       )}
+
+      {/* Share Modal */}
+      <AnimatePresence>
+        {showShareModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setShowShareModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                <span className="font-bold text-gray-900">{t('post.share')}</span>
+                <button onClick={() => setShowShareModal(false)} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
+                  <X size={18} className="text-gray-400" />
+                </button>
+              </div>
+              <div className="p-2">
+                <button
+                  onClick={() => {
+                    onShare?.();
+                    setShowShareModal(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-xl transition-colors text-left"
+                >
+                  <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
+                    <Share2 size={20} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-gray-800">{t('post.shareNow')}</div>
+                    <div className="text-[11px] text-gray-500">{t('post.shareFeedDesc')}</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    const url = `${window.location.origin}/post/${postId}`;
+                    navigator.clipboard.writeText(url);
+                    setShowShareModal(false);
+                    modal.alert(t('post.copySuccess'));
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-xl transition-colors text-left"
+                >
+                  <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-500">
+                    <Copy size={20} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-gray-800">{t('post.copyLink')}</div>
+                    <div className="text-[11px] text-gray-500">{t('post.shareCopyDesc')}</div>
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Report Modal */}
       <AnimatePresence>

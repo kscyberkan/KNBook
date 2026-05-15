@@ -106,6 +106,38 @@ export default function PageManager() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showFriendsPanel, setShowFriendsPanel] = useState(false);
   const [openPostId, setOpenPostId] = useState<string | null>(null);
+
+  // URL routing logic
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const path = window.location.pathname;
+      const match = path.match(/^\/post\/(\d+)$/);
+      if (match && match[1]) {
+        setOpenPostId(match[1]);
+      } else {
+        setOpenPostId(null);
+      }
+    };
+
+    // Initial check
+    handleLocationChange();
+
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  const handleOpenPost = (id: string) => {
+    setOpenPostId(id);
+    window.history.pushState({ postId: id }, '', `/post/${id}`);
+  };
+
+  const handleClosePost = () => {
+    setOpenPostId(null);
+    // If we are on a post URL, go back or reset to root
+    if (window.location.pathname.startsWith('/post/')) {
+      window.history.pushState(null, '', '/');
+    }
+  };
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadPerUser, setUnreadPerUser] = useState<Record<string, number>>({});
   const [activeCall, setActiveCall] = useState<{ friend: User; callType: 'audio' | 'video'; stream: MediaStream } | null>(null);
@@ -326,20 +358,28 @@ export default function PageManager() {
   const renderPage = () => {
     switch (currentPage) {
       case 'feed':
-        return <Feed onUserClick={navigateToProfile} onSharePost={() => navigateToProfile(undefined)} />;
+        return <Feed onUserClick={navigateToProfile} onSharePost={() => navigateToProfile(undefined)} onPostClick={handleOpenPost} />;
       case 'profile':
-        return <Profile user={selectedUser} onEditClick={navigateToEditProfile} onSharePost={() => navigateToProfile(undefined)} onUserClick={navigateToProfile} />;
+        return <Profile user={selectedUser} onEditClick={navigateToEditProfile} onSharePost={() => navigateToProfile(undefined)} onUserClick={navigateToProfile} onPostClick={handleOpenPost} />;
       case 'edit-profile':
         return <EditProfile onBack={() => setCurrentPage('profile')} />;
       case 'bookmarks':
-        return <Bookmarks onUserClick={navigateToProfile} onBack={() => setCurrentPage('feed')} />;
+        return <Bookmarks onUserClick={navigateToProfile} onBack={() => setCurrentPage('feed')} onPostClick={handleOpenPost} />;
       default:
-        return <Feed onUserClick={navigateToProfile} onSharePost={() => navigateToProfile(undefined)} />;
+        return <Feed onUserClick={navigateToProfile} onSharePost={() => navigateToProfile(undefined)} onPostClick={handleOpenPost} />;
+    }
+  };
+
+  const handleGoHome = () => {
+    setCurrentPage('feed');
+    if (window.location.pathname !== '/') {
+      window.history.pushState(null, '', '/');
+      setOpenPostId(null);
     }
   };
 
   const navItems = [
-    { id: 'feed', icon: Home, label: t('nav.home'), onClick: () => setCurrentPage('feed') },
+    { id: 'feed', icon: Home, label: t('nav.home'), onClick: handleGoHome },
     { id: 'profile', icon: UserIcon, label: t('nav.profile'), onClick: () => navigateToProfile(undefined) },
     { id: 'bookmarks', icon: Bookmark, label: t('nav.bookmarkLabel'), onClick: () => setCurrentPage('bookmarks') },
   ];
@@ -351,7 +391,7 @@ export default function PageManager() {
         <div className="w-full flex items-center px-4 gap-2 md:gap-4 max-w-[1440px] mx-auto">
           {/* Logo KN */}
           <div
-            onClick={() => setCurrentPage('feed')}
+            onClick={handleGoHome}
             className="text-2xl md:text-3xl font-black cursor-pointer hover:opacity-90 transition-opacity flex-shrink-0 tracking-tight"
           >
             KN
@@ -432,7 +472,7 @@ export default function PageManager() {
                                 setShowNotifications(false);
                                 // navigate ตาม type
                                 if (notif.type === 'reaction' || notif.type === 'comment' || notif.type === 'share' || notif.type === 'post') {
-                                  if (notif.refId) setOpenPostId(String(notif.refId));
+                                  if (notif.refId) handleOpenPost(String(notif.refId));
                                 } else if (notif.type === 'message') {
                                   if (notif.fromId) {
                                     const friend = friends.find(f => f.id === String(notif.fromId));
@@ -838,7 +878,7 @@ export default function PageManager() {
       {/* Post Modal */}
       <PostModal
         postId={openPostId}
-        onClose={() => setOpenPostId(null)}
+        onClose={handleClosePost}
         onUserClick={navigateToProfile}
       />
 

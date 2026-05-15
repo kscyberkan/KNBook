@@ -28,6 +28,11 @@ auth.loginManage,เข้าสู่ระบบจัดการ,Admin Login
 post.create,สร้างโพสต์,Create Post,创建帖子,投稿を作成
 post.edit,แก้ไขโพสต์,Edit Post,编辑帖子,投稿を編集
 post.delete,ลบโพสต์,Delete Post,删除帖子,投稿を削除
+post.shareNow,แชร์ทันที,Share Now,立即分享,今すぐシェア
+post.copyLink,คัดลอกลิงก์,Copy Link,复制链接,リンクをコピー
+post.copySuccess,คัดลอกลิงก์ไปยังคลิปบอร์ดแล้ว,Link copied to clipboard,链接已复制到剪贴板,リンクをクリップボードにコピーしました
+post.shareFeedDesc,แชร์ไปยังหน้าฟีดของคุณ,Share to your feed,分享到你的动态,フィードにシェアする
+post.shareCopyDesc,ส่งลิงก์โพสต์นี้ให้เพื่อน,Send this link to friends,将此链接发给好友,このリンクを友達に送る
 post.like,ถูกใจ,Like,点赞,いいね
 post.comment,ความคิดเห็น,Comment,评论,コメント
 post.share,แชร์,Share,分享,シェア

@@ -31,9 +31,10 @@ interface ProfileProps {
   onEditClick?: () => void;
   onSharePost?: () => void;
   onUserClick?: (user: User) => void;
+  onPostClick?: (postId: string) => void;
 }
 
-export default function Profile({ user, onEditClick, onSharePost, onUserClick }: ProfileProps) {
+export default function Profile({ user, onEditClick, onSharePost, onUserClick, onPostClick }: ProfileProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const displayUser: User = user || Global.user;
@@ -95,9 +96,53 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
       isFetchingRef.current = false;
     });
 
+    const unsubNew = net.on(PacketSC.NEW_POST, (packet: Packet) => {
+      const post = JSON.parse(packet.readString()) as Post;
+      // เพิ่มโพสต์ใหม่เฉพาะถ้าเป็นโพสต์ของเจ้าของโปรไฟล์ที่กำลังดูอยู่
+      if (String(post.user.id) === displayUser.id) {
+        setPosts(prev => [post, ...prev]);
+        offsetRef.current += 1;
+      }
+    });
+
+    const unsubReaction = net.on(PacketSC.REACTION_UPDATE, (packet: Packet) => {
+      const postId = String(packet.readInt());
+      const { userId, type } = JSON.parse(packet.readString()) as { userId: number; type: string | null };
+      setPosts(prev => prev.map(p => {
+        if (p.id !== postId) return p;
+        const reactions = [...(p.reactions ?? [])];
+        if (type === null) {
+          return { ...p, reactions: reactions.map(r => ({ ...r, users: r.users.filter(u => u !== String(userId)) })) };
+        }
+        const existing = reactions.find(r => r.type === type);
+        if (existing) {
+          return { ...p, reactions: reactions.map(r => r.type === type ? { ...r, users: [...r.users, String(userId)] } : r) };
+        }
+        return { ...p, reactions: [...reactions, { type, users: [String(userId)] }] };
+      }));
+    });
+
+    const unsubDel = net.on(PacketSC.POST_DELETED, (packet: Packet) => {
+      const postId = String(packet.readInt());
+      setPosts(prev => prev.filter(p => p.id !== postId));
+      offsetRef.current = Math.max(0, offsetRef.current - 1);
+    });
+
+    const unsubEdit = net.on(PacketSC.POST_UPDATED, (packet: Packet) => {
+      const postId = String(packet.readInt());
+      const text = packet.readString();
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, text: text || undefined } : p));
+    });
+
     net.getUserPosts(Number(displayUser.id), 0);
 
-    return () => unsub();
+    return () => {
+      unsub();
+      unsubNew();
+      unsubReaction();
+      unsubDel();
+      unsubEdit();
+    };
   }, [displayUser.id]);
 
   // โหลด friend status
@@ -383,6 +428,7 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick }:
                       onReact={(type) => handleReact(post.id, type)}
                       onComment={(text, img, sticker, replyToId) => handleComment(post.id, text, img, sticker, replyToId)}
                       onCommentUserClick={(u) => onUserClick?.(u)}
+                      onPostClick={onPostClick}
                     />
                   </motion.div>
                 );

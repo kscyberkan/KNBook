@@ -8,9 +8,10 @@ import Packet from '../network/packet';
 interface Props {
   onUserClick?: (user: User) => void;
   onBack?: () => void;
+  onPostClick?: (postId: string) => void;
 }
 
-export default function Bookmarks({ onUserClick, onBack }: Props) {
+export default function Bookmarks({ onUserClick, onBack, onPostClick }: Props) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -124,6 +125,7 @@ export default function Bookmarks({ onUserClick, onBack }: Props) {
                 onComment={(text, img, sticker, replyToId) => net.createComment(Number(post.id), text, img, sticker, replyToId ? Number(replyToId) : undefined)}
                 onShare={() => net.createPost({ sharedFromId: Number(post.id) })}
                 onCommentUserClick={(u) => onUserClick?.(u)}
+                onPostClick={() => onPostClick?.(post.id)}
               />
             );
           })}
