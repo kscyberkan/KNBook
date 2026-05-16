@@ -157,9 +157,6 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                                 {connStatus === 'connected' ? 'Server Connected' : `Server ${connStatus}...`}
                             </Text>
                         </View>
-                        <Text style={{ fontSize: 10, color: '#9CA3AF', marginTop: 5 }}>
-                            Target: {CONFIG.WS_URL}
-                        </Text>
                     </View>
 
                     <View style={styles.form}>
