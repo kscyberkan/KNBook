@@ -373,6 +373,7 @@ function Feed({ onUserClick, onSharePost, onPostClick, mentionUsers = [] }: Feed
                                 onCommentUserClick={(u) => onUserClick?.(u)}
                                 onPostClick={onPostClick}
                                 mentionUsers={mentionUsers}
+                                mentionedUsers={post.mentionedUsers}
                                 initialBookmarked={bookmarkedIds.has(post.id)}
                                 onBookmark={(saved) => saved ? net.bookmarkPost(Number(post.id)) : net.unbookmarkPost(Number(post.id))}
                             />

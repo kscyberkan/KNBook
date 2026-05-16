@@ -161,7 +161,45 @@ export function normalizePostForApi(p: any): any {
     return normalizePost(p);
 }
 
+/** parse @ชื่อ จาก text แล้วคืน list ของชื่อ */
+function extractMentionNames(text: string | null | undefined): string[] {
+    if (!text) return [];
+    return [...text.matchAll(/@([^\s@][^@]*?)(?=\s@|\s*$|\s+[^@])/g)]
+        .map(m => m[1]!.trim())
+        .filter(Boolean);
+}
+
 function normalizePost(p: any): any {
+    // รวม users ที่รู้จักจาก post + comments
+    const knownUsers: Map<string, any> = new Map();
+    if (p.user) knownUsers.set(String(p.user.id), { ...p.user, id: String(p.user.id) });
+    (p.comments ?? []).forEach((c: any) => {
+        if (c.user) knownUsers.set(String(c.user.id), { ...c.user, id: String(c.user.id) });
+    });
+
+    // extract mention names จาก post text + comment texts
+    const allTexts = [
+        p.text,
+        ...(p.comments ?? []).map((c: any) => c.text),
+    ];
+    const mentionNames = new Set(allTexts.flatMap(extractMentionNames));
+
+    // resolve mention names → user objects จาก knownUsers
+    const mentionedUsers: any[] = [];
+    const seenIds = new Set<string>();
+    for (const name of mentionNames) {
+        for (const u of knownUsers.values()) {
+            if (u.name === name && !seenIds.has(u.id)) {
+                seenIds.add(u.id);
+                mentionedUsers.push({
+                    id: u.id,
+                    name: u.name,
+                    profileImage: u.profileImage ?? '',
+                });
+            }
+        }
+    }
+
     return {
         ...p,
         id: String(p.id),
@@ -177,7 +215,8 @@ function normalizePost(p: any): any {
             replyToComment: undefined,
         })),
         sharedPost: p.sharedFrom ? normalizePost(p.sharedFrom) : undefined,
-        sharedFrom: undefined, // ไม่ส่ง field นี้ไป frontend
+        sharedFrom: undefined,
+        mentionedUsers: mentionedUsers.length > 0 ? mentionedUsers : undefined,
     };
 }
 // ─── Auth ────────────────────────────────────────────────────────────────────

@@ -471,7 +471,7 @@ export default function PageManager() {
                                 markOneRead(notif.id);
                                 setShowNotifications(false);
                                 // navigate ตาม type
-                                if (notif.type === 'reaction' || notif.type === 'comment' || notif.type === 'share' || notif.type === 'post') {
+                                if (notif.type === 'reaction' || notif.type === 'comment' || notif.type === 'share' || notif.type === 'post' || notif.type === 'mention') {
                                   if (notif.refId) handleOpenPost(String(notif.refId));
                                 } else if (notif.type === 'message') {
                                   if (notif.fromId) {

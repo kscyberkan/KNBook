@@ -35,6 +35,7 @@ interface FeedItemProps {
   onCommentUserClick?: (user: User) => void;
   onPostClick?: (postId: string) => void;
   mentionUsers?: User[];
+  mentionedUsers?: User[];  // users ที่ถูก tag ใน post นี้ (จาก server)
 }
 
 function SharedPost({ post, isSub, onUserClick }: { post?: Post; isSub?: boolean; onUserClick?: (user: User) => void }) {
@@ -274,7 +275,12 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   onCommentUserClick,
   onPostClick,
   mentionUsers = [],
+  mentionedUsers = [],
 }) => {
+  // รวม mentionUsers (friends) + mentionedUsers (tagged in this post) เป็น list เดียว
+  const allMentionUsers = Array.from(
+    new Map([...mentionUsers, ...mentionedUsers].map(u => [u.id, u])).values()
+  );
   const [commentText, setCommentText] = useState('');
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionResults, setMentionResults] = useState<{id: string; name: string; profileImage: string}[]>([]);
@@ -294,7 +300,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const commentImageRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLDivElement>(null);
-  const reactionPickerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reactionPickerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [selectedReaction, setSelectedReaction] = useState<string | null>(null);
   const [reactionsCount, setReactionsCount] = useState<Record<string, number>>(initialReactionsCount);
@@ -594,10 +600,10 @@ export const FeedItem: React.FC<FeedItemProps> = ({
           <div className="px-4 pb-3 text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap">
             <EmojiText
               text={postText}
-              mentionUsers={mentionUsers}
+              mentionUsers={allMentionUsers}
               onMentionClick={(u) => onCommentUserClick?.(u)}
               onMentionNameClick={(name) => {
-                // ถ้าไม่มีใน mentionUsers ให้ search แล้ว navigate
+                // ถ้าไม่มีใน allMentionUsers ให้ search แล้ว navigate
                 net.searchUsers(name);
                 const unsub = net.on(PacketSC.SEARCH_RESULTS, (packet) => {
                   unsub();

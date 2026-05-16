@@ -39,4 +39,5 @@ export interface Post {
   comments?: Comment[];
   createdAt: string;
   sharedPost?: Post;
+  mentionedUsers?: User[];  // users ที่ถูก @mention ใน post/comments
 }

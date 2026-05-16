@@ -431,6 +431,7 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick, o
                       onCommentUserClick={(u) => onUserClick?.(u)}
                       onPostClick={onPostClick}
                       mentionUsers={mentionUsers}
+                      mentionedUsers={post.mentionedUsers}
                     />
                   </motion.div>
                 );
