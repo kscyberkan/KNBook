@@ -12,11 +12,12 @@ interface FeedProps {
     onUserClick?: (user: User) => void;
     onSharePost?: (post: Post) => void;
     onPostClick?: (postId: string) => void;
+    mentionUsers?: User[];
 }
 
 type FeedFilter = 'all' | 'group' | 'general';
 
-function Feed({ onUserClick, onSharePost, onPostClick }: FeedProps) {
+function Feed({ onUserClick, onSharePost, onPostClick, mentionUsers = [] }: FeedProps) {
     const [posts, setPosts] = React.useState<Post[]>([]);
     const [loading, setLoading] = React.useState(true);
     const [loadingMore, setLoadingMore] = React.useState(false);
@@ -195,7 +196,7 @@ function Feed({ onUserClick, onSharePost, onPostClick }: FeedProps) {
     return (
         <div className="flex-1">
             <div className="max-w-[720px] mx-auto w-full py-4 md:py-6 px-3 md:px-4">
-                <CreatePost onPost={handleNewPost} />
+                <CreatePost onPost={handleNewPost} mentionUsers={mentionUsers} />
 
                 {/* Filter Dropdown */}
                 {(() => {
@@ -371,6 +372,7 @@ function Feed({ onUserClick, onSharePost, onPostClick }: FeedProps) {
                                 onComment={(text, img, sticker, replyToId) => handleComment(post.id, text, img, sticker, replyToId)}
                                 onCommentUserClick={(u) => onUserClick?.(u)}
                                 onPostClick={onPostClick}
+                                mentionUsers={mentionUsers}
                                 initialBookmarked={bookmarkedIds.has(post.id)}
                                 onBookmark={(saved) => saved ? net.bookmarkPost(Number(post.id)) : net.unbookmarkPost(Number(post.id))}
                             />

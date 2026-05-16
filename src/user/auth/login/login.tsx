@@ -5,7 +5,7 @@ import { authFunction } from '../auth';
 import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '../../../utils/theme';
-import Button from '../../components/button';
+import { ButtonDefault } from '../../components/button';
 import { lineAuth } from '../line-auth';
 import { useGoogleLogin } from '@react-oauth/google';
 import { googleAuth } from '../google-auth';
@@ -66,12 +66,12 @@ export default function Login() {
 
 
                 <div className="space-y-5">
-                    <InputField.Default ref={username} type='text' onChange={(e) => {
+                    <InputField ref={username} type='text' onChange={(e) => {
                         e.target.value = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
                     }}
                         maxLength={16}
                         label={t('auth.username')} placeholder={t('auth.username')} />
-                    <InputField.Default ref={password} type='password' onChange={(e) => {
+                    <InputField ref={password} type='password' onChange={(e) => {
                         e.target.value = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
                     }}
                         maxLength={16}
@@ -79,7 +79,7 @@ export default function Login() {
                 </div>
 
                 <div className="mt-8">
-                    <Button.Default label={t('auth.login')} onClick={handleLogin} />
+                    <ButtonDefault label={t('auth.login')} onClick={handleLogin} />
                 </div>
 
                 <div className="mt-6 flex items-center space-x-3">

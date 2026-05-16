@@ -1,17 +1,19 @@
 import React from 'react';
 import { getEmojiSvg } from './emojiList';
-import { type User } from '../../types';
+import { type User } from '../../../types';
 
 export function parseEmojiText(
   text: string,
   mentionUsers?: User[],
-  onMentionClick?: (user: User) => void
+  onMentionClick?: (user: User) => void,
+  onMentionNameClick?: (name: string) => void,
 ): React.ReactNode[] {
   const sortedNames = (mentionUsers ?? [])
     .map(u => u.name)
     .sort((a, b) => b.length - a.length)
     .map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 
+  // match @ชื่อที่รู้จัก (ยาวสุดก่อน) หรือ @คำเดี่ยว fallback
   const mentionPattern = sortedNames.length > 0
     ? `@(?:${sortedNames.join('|')})|@\\S+`
     : `@\\S+`;
@@ -30,14 +32,20 @@ export function parseEmojiText(
         );
       }
     }
-    if (part.startsWith('@') && onMentionClick) {
+    if (part.startsWith('@') && (onMentionClick || onMentionNameClick)) {
       const name = part.slice(1).trim();
       const user = mentionUsers?.find(u => u.name === name);
       return (
         <span
           key={i}
           className="text-[#5B65F2] font-medium cursor-pointer hover:underline"
-          onClick={() => user && onMentionClick(user)}
+          onClick={() => {
+            if (user && onMentionClick) {
+              onMentionClick(user);
+            } else if (onMentionNameClick) {
+              onMentionNameClick(name);
+            }
+          }}
         >
           {part}
         </span>
@@ -52,8 +60,9 @@ interface EmojiTextProps {
   className?: string;
   mentionUsers?: User[];
   onMentionClick?: (user: User) => void;
+  onMentionNameClick?: (name: string) => void;
 }
 
-export const EmojiText: React.FC<EmojiTextProps> = ({ text, className, mentionUsers, onMentionClick }) => (
-  <span className={className}>{parseEmojiText(text, mentionUsers, onMentionClick)}</span>
+export const EmojiText: React.FC<EmojiTextProps> = ({ text, className, mentionUsers, onMentionClick, onMentionNameClick }) => (
+  <span className={className}>{parseEmojiText(text, mentionUsers, onMentionClick, onMentionNameClick)}</span>
 );

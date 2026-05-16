@@ -34,6 +34,7 @@ interface FeedItemProps {
   onComment?: (text: string, imageUrl?: string, stickerUrl?: string, replyToId?: string) => void;
   onCommentUserClick?: (user: User) => void;
   onPostClick?: (postId: string) => void;
+  mentionUsers?: User[];
 }
 
 function SharedPost({ post, isSub, onUserClick }: { post?: Post; isSub?: boolean; onUserClick?: (user: User) => void }) {
@@ -175,7 +176,7 @@ function CommentBubble({ c, isReply, allUsers, onCommentUserClick, onReply, setS
   );
 }
 
-function CommentThread({ comment, replies, onCommentUserClick, onReply, comments, onComment, currentUser }: {
+function CommentThread({ comment, replies, onCommentUserClick, onReply, comments, onComment, currentUser, mentionUsers }: {
   comment: Comment;
   replies: Comment[];
   onCommentUserClick?: (user: User) => void;
@@ -183,11 +184,15 @@ function CommentThread({ comment, replies, onCommentUserClick, onReply, comments
   comments: Comment[];
   onComment?: (text: string, imageUrl?: string, stickerUrl?: string, replyToId?: string) => void;
   currentUser: User;
+  mentionUsers?: User[];
 }) {
   const [showReplies, setShowReplies] = React.useState(replies.length > 0);
   const [prefillText, setPrefillText] = React.useState('');
   const inlineInputRef = React.useRef<{ focus: () => void; setText: (t: string) => void } | null>(null);
-  const allUsers = comments.map(c => c.user);
+  // รวม commenters + friends เพื่อ resolve mention click
+  const allUsers = Array.from(
+    new Map([...comments.map(c => c.user), ...(mentionUsers ?? [])].map(u => [u.id, u])).values()
+  );
   const { t } = useDictionary();
 
   // auto-expand เมื่อมี reply ใหม่
@@ -268,6 +273,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   onComment,
   onCommentUserClick,
   onPostClick,
+  mentionUsers = [],
 }) => {
   const [commentText, setCommentText] = useState('');
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -586,7 +592,21 @@ export const FeedItem: React.FC<FeedItemProps> = ({
           </div>
         ) : postText ? (
           <div className="px-4 pb-3 text-gray-800 text-[15px] leading-relaxed whitespace-pre-wrap">
-            <EmojiText text={postText} />
+            <EmojiText
+              text={postText}
+              mentionUsers={mentionUsers}
+              onMentionClick={(u) => onCommentUserClick?.(u)}
+              onMentionNameClick={(name) => {
+                // ถ้าไม่มีใน mentionUsers ให้ search แล้ว navigate
+                net.searchUsers(name);
+                const unsub = net.on(PacketSC.SEARCH_RESULTS, (packet) => {
+                  unsub();
+                  const results = JSON.parse(packet.readString()) as User[];
+                  const found = results.find(u => u.name === name);
+                  if (found) onCommentUserClick?.(found);
+                });
+              }}
+            />
           </div>
         ) : null}
         {postVideoUrl && (
@@ -765,6 +785,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                     comments={comments}
                     onComment={onComment}
                     currentUser={{ id: Global.user.id, name: Global.user.name, profileImage: Global.user.profileImage }}
+                    mentionUsers={mentionUsers}
                   />
                 );
               })}
@@ -779,7 +800,14 @@ export const FeedItem: React.FC<FeedItemProps> = ({
         onSubmit={(text, img, sticker, replyToId) => {
           onComment?.(text, img, sticker, replyToId);
         }}
-        mentionUsers={comments.map(c => c.user)}
+        mentionUsers={Array.from(
+          new Map(
+            [...mentionUsers, ...comments.map(c => c.user)]
+              .filter(u => u.id !== Global.user.id)
+              .map(u => [u.id, u])
+          ).values()
+        )}
+        onMentionClick={onCommentUserClick}
       />
 
       {/* Liked By Popup */}

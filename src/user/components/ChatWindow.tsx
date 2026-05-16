@@ -421,7 +421,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
               <EmojiPicker
                 open={showEmoji}
                 onSelect={(id) => {
-                  const emojiChar = getEmojiChar(id) || `:${id}:`;
+                  const emojiChar = `:${id}:`;
                   setInputText(prev => prev + emojiChar);
                   setTimeout(() => textareaRef.current?.focus(), 0);
                 }}

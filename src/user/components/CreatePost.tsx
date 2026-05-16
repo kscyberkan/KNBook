@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Image as ImageIcon, Smile, Send, X, StickyNote } from 'lucide-react';
 import { VideoPlayer } from './VideoPlayer';
-import { EmojiTextarea } from './emoji/EmojiTextarea';
+import { MentionInput } from './emoji/MentionInput';
 import { EmojiPicker } from './emoji/EmojiPicker';
-import { getEmojiChar } from './emoji/emojiList';
 import { Global } from '../Global';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDictionary } from '../../utils/dictionary';
+import { type User } from '../../types';
 
 interface CreatePostProps {
   onPost?: (postData: {
@@ -19,9 +19,10 @@ interface CreatePostProps {
     stickerUrl: string | null;
     groupName?: string | null;
   }) => void;
+  mentionUsers?: User[];
 }
 
-export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
+export const CreatePost: React.FC<CreatePostProps> = ({ onPost, mentionUsers = [] }) => {
   const { t } = useDictionary();
   const [text, setText] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -38,10 +39,9 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [customFeeling, setCustomFeeling] = useState('');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const divRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const [posting, setPosting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -99,24 +99,9 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
   };
 
   const insertEmoji = (emojiId: string) => {
-    const emojiChar = getEmojiChar(emojiId) || `:${emojiId}:`;
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      setText((prev) => prev + emojiChar);
-      return;
-    }
-
-    const start = textarea.selectionStart ?? text.length;
-    const end = textarea.selectionEnd ?? text.length;
-    const nextText = text.slice(0, start) + emojiChar + text.slice(end);
-    setText(nextText);
-
-    setTimeout(() => {
-      textarea.focus();
-      const cursorPos = start + emojiChar.length;
-      textarea.setSelectionRange(cursorPos, cursorPos);
-    }, 0);
+    setText(prev => prev + `:${emojiId}:`);
     setShowEmojiPicker(false);
+    setTimeout(() => divRef.current?.focus(), 0);
   };
 
   const removeFile = () => {
@@ -198,15 +183,17 @@ export const CreatePost: React.FC<CreatePostProps> = ({ onPost }) => {
               </AnimatePresence>
             </div>
 
-            <div className="relative">
-              <EmojiTextarea
-                textareaRef={textareaRef}
-                placeholder={`${Global.user.name} ${t('post.placeholder')}`}
+            <div className="relative bg-gray-50 rounded-xl focus-within:ring-2 focus-within:ring-[#5B65F2]/15 transition-all duration-200 cursor-text"
+              style={{ minHeight: isExpanded || hasContent ? '100px' : '42px' }}
+              onClick={() => { setIsExpanded(true); divRef.current?.focus(); }}
+            >
+              <MentionInput
                 value={text}
                 onChange={setText}
-                className="w-full bg-gray-50 py-2.5 px-4 pr-12 rounded-xl text-gray-900 placeholder-gray-400 focus:text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#5B65F2]/15 transition-all duration-200 overflow-hidden text-[15px] leading-relaxed"
-                style={{ minHeight: isExpanded || hasContent ? '100px' : '42px' }}
-                onFocus={() => setIsExpanded(true)}
+                placeholder={`${Global.user.name} ${t('post.placeholder')}`}
+                mentionUsers={mentionUsers}
+                divRef={divRef}
+                className="w-full py-2.5 px-4 pr-12 text-[15px] leading-relaxed"
                 onBlur={() => { if (!hasContent) setIsExpanded(false); }}
               />
               <div className="absolute right-3 bottom-3">

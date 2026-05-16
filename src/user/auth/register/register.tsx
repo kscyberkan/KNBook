@@ -1,6 +1,6 @@
 import './register.css';
 import InputField from '../../components/inputfield';
-import Button from '../../components/button';
+import { ButtonDefault } from '../../components/button';
 import register from './function';
 import { useRef, useState } from 'react';
 
@@ -79,13 +79,13 @@ export default function Register() {
 
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <InputField.Default ref={name} type='text' label={t('register.firstName')} placeholder={t('register.firstNamePlaceholder')} maxLength={50} />
-                        <InputField.Default ref={lastname} type='text' label={t('register.lastName')} placeholder={t('register.lastNamePlaceholder')} maxLength={50} />
+                        <InputField ref={name} type='text' label={t('register.firstName')} placeholder={t('register.firstNamePlaceholder')} maxLength={50} />
+                        <InputField ref={lastname} type='text' label={t('register.lastName')} placeholder={t('register.lastNamePlaceholder')} maxLength={50} />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <InputField.Default ref={nickname} type='text' label={t('register.nickname')} placeholder={t('register.nickname')} maxLength={20} />
-                        <InputField.Default ref={phone} type='text' label={t('register.phone')} onChange={(e) => {
+                        <InputField ref={nickname} type='text' label={t('register.nickname')} placeholder={t('register.nickname')} maxLength={20} />
+                        <InputField ref={phone} type='text' label={t('register.phone')} onChange={(e) => {
                             e.target.value = e.target.value.replace(/\D/g, '')
                         }}
                             maxLength={10}
@@ -109,12 +109,12 @@ export default function Register() {
 
                     <div className="pt-2 border-t border-gray-100 mt-2">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                            <InputField.Default ref={username} type='text' onChange={(e) => {
+                            <InputField ref={username} type='text' onChange={(e) => {
                                 e.target.value = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
                             }}
                                 maxLength={16}
                                 label={t('register.username')} placeholder={t('register.username')} />
-                            <InputField.Default ref={password} type='password' onChange={(e) => {
+                            <InputField ref={password} type='password' onChange={(e) => {
                                 e.target.value = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
                             }}
                                 maxLength={16}
@@ -124,7 +124,7 @@ export default function Register() {
                 </div>
 
                 <div className="mt-8">
-                    <Button.Default label={t('auth.register')} onClick={handleRegister} />
+                    <ButtonDefault label={t('auth.register')} onClick={handleRegister} />
                 </div>
 
                 <div className="mt-8 pt-6 border-t border-[var(--border)] text-center">

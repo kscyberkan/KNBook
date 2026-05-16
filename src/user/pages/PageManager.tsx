@@ -24,7 +24,7 @@ import { useDictionary } from "../../utils/dictionary";
 
 export type PageType = 'feed' | 'profile' | 'edit-profile' | 'bookmarks';
 
-type NotificationType = 'post' | 'reaction' | 'share' | 'comment' | 'message' | 'friend_request';
+type NotificationType = 'post' | 'reaction' | 'share' | 'comment' | 'message' | 'friend_request' | 'mention';
 
 interface Notification {
   id: string;
@@ -358,9 +358,9 @@ export default function PageManager() {
   const renderPage = () => {
     switch (currentPage) {
       case 'feed':
-        return <Feed onUserClick={navigateToProfile} onSharePost={() => navigateToProfile(undefined)} onPostClick={handleOpenPost} />;
+        return <Feed onUserClick={navigateToProfile} onSharePost={() => navigateToProfile(undefined)} onPostClick={handleOpenPost} mentionUsers={friends} />;
       case 'profile':
-        return <Profile user={selectedUser} onEditClick={navigateToEditProfile} onSharePost={() => navigateToProfile(undefined)} onUserClick={navigateToProfile} onPostClick={handleOpenPost} />;
+        return <Profile user={selectedUser} onEditClick={navigateToEditProfile} onSharePost={() => navigateToProfile(undefined)} onUserClick={navigateToProfile} onPostClick={handleOpenPost} mentionUsers={friends} />;
       case 'edit-profile':
         return <EditProfile onBack={() => setCurrentPage('profile')} />;
       case 'bookmarks':

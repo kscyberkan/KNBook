@@ -12,6 +12,7 @@ interface CommentInputProps {
   onCancelReply?: () => void;
   onSubmit: (text: string, imageUrl?: string, stickerUrl?: string, replyToId?: string) => void;
   mentionUsers?: User[];
+  onMentionClick?: (user: User) => void;
   placeholder?: string;
   compact?: boolean;
   initialText?: string;
@@ -33,6 +34,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
   onCancelReply,
   onSubmit,
   mentionUsers = [],
+  onMentionClick,
   placeholder,
   compact = false,
   initialText,
@@ -170,6 +172,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
             placeholder={placeholder || (replyTo ? `ตอบกลับ ${replyTo.user.name}...` : 'แสดงความคิดเห็น...')}
             mentionUsers={mentionUsers}
+            onMentionClick={onMentionClick}
             divRef={inputRef}
             className="text-gray-700"
           />
@@ -184,7 +187,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
               </button>
               <EmojiPicker
                 open={showEmoji}
-                onSelect={(id) => setText(prev => prev + (getEmojiChar(id) || `:${id}:`))}
+                onSelect={(id) => setText(prev => prev + `:${id}:`)}
                 onClose={() => setShowEmoji(false)}
                 placement="top"
                 anchorRef={emojiButtonRef as React.RefObject<HTMLElement | null>}

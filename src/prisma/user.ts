@@ -54,3 +54,11 @@ export async function searchUsers(query: string): Promise<User[]> {
         take: 20,
     });
 }
+
+/** หา user ที่มีชื่อตรงกับ mention @name (exact, case-insensitive) */
+export async function searchUsersByName(name: string): Promise<User[]> {
+    return prisma.user.findMany({
+        where: { name: { equals: name, mode: 'insensitive' } },
+        take: 5,
+    });
+}

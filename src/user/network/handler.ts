@@ -322,6 +322,47 @@ async function recvResume(socket: WS, packet: Packet): Promise<void> {
     socket.send(ok.toBuffer());
 }
 
+// ─── Mention Notification Helper ─────────────────────────────────────────────
+
+/** parse @ชื่อ จาก text แล้วส่ง notification ให้ทุกคนที่ถูก tag */
+async function notifyMentions(
+    text: string,
+    fromUserId: number,
+    fromName: string,
+    fromImage: string | undefined,
+    refId: number,
+    excludeIds: Set<number> = new Set(),
+): Promise<void> {
+    const mentions = [...text.matchAll(/@([^\s@]+(?:\s[^\s@]+)*)/g)].map(m => m[1]!.trim());
+    if (mentions.length === 0) return;
+
+    const { searchUsersByName } = await import('@/prisma/user');
+    const notified = new Set<number>();
+
+    for (const name of mentions) {
+        const users = await searchUsersByName(name);
+        for (const user of users) {
+            if (user.id === fromUserId) continue;
+            if (excludeIds.has(user.id)) continue;
+            if (notified.has(user.id)) continue;
+            notified.add(user.id);
+
+            const notif = await createNotification({
+                userId: user.id,
+                type: 'mention',
+                fromName,
+                fromImage,
+                fromId: fromUserId,
+                refId,
+                message: 'กล่าวถึงคุณในโพสต์',
+            });
+            const np = new Packet(PacketSC.NEW_NOTIFICATION);
+            np.writeString(JSON.stringify(notif));
+            sendToUser(user.id, np.toBuffer());
+        }
+    }
+}
+
 // ─── Post ────────────────────────────────────────────────────────────────────
 
 async function recvGetFeed(socket: WS, packet: Packet): Promise<void> {
@@ -364,9 +405,11 @@ async function recvCreatePost(socket: WS, packet: Packet): Promise<void> {
     const groupName = packet.readString();
     const sharedFromId = packet.readInt();
 
+    const cleanText = sanitizeText(text) || undefined;
+
     const post = await createPost({
         userId,
-        text: sanitizeText(text) || undefined,
+        text: cleanText,
         imageUrl: imageUrl || undefined,
         videoUrl: videoUrl || undefined,
         feeling: sanitizeShort(feeling, 50) || undefined,
@@ -374,6 +417,15 @@ async function recvCreatePost(socket: WS, packet: Packet): Promise<void> {
         groupName: sanitizeShort(groupName, 50) || undefined,
         sharedFromId: sharedFromId > 0 ? sharedFromId : undefined,
     });
+
+    // notify คนที่ถูก @mention ใน post
+    if (cleanText) {
+        const { getUserById } = await import('@/prisma/user');
+        const sender = await getUserById(userId);
+        if (sender) {
+            await notifyMentions(cleanText, userId, sender.name, sender.profileImage ?? undefined, post.id);
+        }
+    }
 
     // broadcast โพสต์ใหม่ให้ทุกคน
     const p = new Packet(PacketSC.NEW_POST);
@@ -500,6 +552,13 @@ async function recvCreateComment(socket: WS, packet: Packet): Promise<void> {
         const np = new Packet(PacketSC.NEW_NOTIFICATION);
         np.writeString(JSON.stringify(notif));
         sendToUser(post.userId, np.toBuffer());
+    }
+
+    // notify คนที่ถูก @mention ใน comment (ยกเว้นเจ้าของโพสที่แจ้งไปแล้ว)
+    const cleanCommentText = comment.text;
+    if (cleanCommentText) {
+        const excludeIds = new Set([userId, post?.userId ?? 0]);
+        await notifyMentions(cleanCommentText, userId, comment.user.name, comment.user.profileImage ?? undefined, postId, excludeIds);
     }
 
     const p = new Packet(PacketSC.NEW_COMMENT);

@@ -14,8 +14,19 @@ interface EmojiTextareaProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
-/** แปลง raw emoji code เช่น :heart: เป็นตัว emoji character */
-function normalizeEmojiText(text: string): string {
+/** แปลง emoji char กลับเป็น :id: code เพื่อ store */
+function charToEmojiCode(text: string): string {
+  let result = text;
+  for (const emoji of EMOJI_MAP.values()) {
+    if (emoji.char) {
+      result = result.split(emoji.char).join(`:${emoji.id}:`);
+    }
+  }
+  return result;
+}
+
+/** แปลง :id: → emoji char เพื่อ render overlay */
+function codeToChar(text: string): string {
   return text.replace(/:(\w+):/g, (match, id) => {
     const emoji = EMOJI_MAP.get(id);
     return emoji?.char ?? match;
@@ -108,7 +119,7 @@ export const EmojiTextarea: React.FC<EmojiTextareaProps> = ({
     }
   }, [value]);
 
-  const normalizedValue = normalizeEmojiText(value);
+  const normalizedValue = codeToChar(value);
 
   const overlayHtml = normalizedValue
     ? renderOverlay(normalizedValue, caretIndex)
@@ -135,7 +146,8 @@ export const EmojiTextarea: React.FC<EmojiTextareaProps> = ({
         ref={ref}
         value={normalizedValue}
         onChange={(e) => {
-          onChange(normalizeEmojiText(e.target.value));
+          // แปลง emoji char ที่ user paste/type กลับเป็น :id: ก่อนส่งออก
+          onChange(charToEmojiCode(e.target.value));
           updateCaretPosition(e.target);
         }}
         onKeyDown={onKeyDown}

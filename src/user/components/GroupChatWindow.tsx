@@ -468,7 +468,7 @@ export const GroupChatWindow: React.FC<GroupChatWindowProps> = ({
               <button ref={emojiButtonRef} onClick={() => { setShowEmoji(!showEmoji); setShowAttachMenu(false); }} className={`transition-colors text-lg leading-none ${showEmoji ? 'opacity-100' : 'text-gray-400 hover:text-yellow-500'}`}>
                 <Smile size={16} />
               </button>
-              <EmojiPicker open={showEmoji} onSelect={id => { setInputText(prev => prev + (getEmojiChar(id) || `:${id}:`)); setTimeout(() => textareaRef.current?.focus(), 0); }} onClose={() => setShowEmoji(false)} placement="top" anchorRef={emojiButtonRef as React.RefObject<HTMLElement | null>} />
+              <EmojiPicker open={showEmoji} onSelect={id => { setInputText(prev => prev + `:${id}:`); setTimeout(() => textareaRef.current?.focus(), 0); }} onClose={() => setShowEmoji(false)} placement="top" anchorRef={emojiButtonRef as React.RefObject<HTMLElement | null>} />
             </div>
           </div>
           <button onClick={handleSend} disabled={!inputText.trim()} className={`p-2.5 rounded-full transition-all flex-shrink-0 mb-0.5 ${inputText.trim() ? 'bg-[#5B65F2] text-white shadow-md shadow-[#5B65F2]/30 hover:bg-[#4a54e1] active:scale-95' : 'bg-gray-100 text-gray-300 cursor-not-allowed'}`}>

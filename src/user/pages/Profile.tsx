@@ -32,9 +32,10 @@ interface ProfileProps {
   onSharePost?: () => void;
   onUserClick?: (user: User) => void;
   onPostClick?: (postId: string) => void;
+  mentionUsers?: User[];
 }
 
-export default function Profile({ user, onEditClick, onSharePost, onUserClick, onPostClick }: ProfileProps) {
+export default function Profile({ user, onEditClick, onSharePost, onUserClick, onPostClick, mentionUsers = [] }: ProfileProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const displayUser: User = user || Global.user;
@@ -429,6 +430,7 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick, o
                       onComment={(text, img, sticker, replyToId) => handleComment(post.id, text, img, sticker, replyToId)}
                       onCommentUserClick={(u) => onUserClick?.(u)}
                       onPostClick={onPostClick}
+                      mentionUsers={mentionUsers}
                     />
                   </motion.div>
                 );
