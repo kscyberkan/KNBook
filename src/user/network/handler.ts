@@ -157,16 +157,42 @@ function groupReactions(raw: { type: string; userId: number; user: { name: strin
 }
 
 /** normalize post จาก Prisma format → frontend format (recursive สำหรับ sharedPost) */
-export function normalizePostForApi(p: any): any {
-    return normalizePost(p);
+export async function normalizePostForApi(p: any): Promise<any> {
+    return normalizePostWithMentions(p);
 }
 
-/** parse @ชื่อ จาก text แล้วคืน list ของชื่อ */
-function extractMentionNames(text: string | null | undefined): string[] {
+/** parse @ชื่อ จาก text โดย match กับ known names ก่อน (longest match) แล้ว fallback @\S+ */
+function extractMentionNames(text: string | null | undefined, knownNames: string[] = []): string[] {
     if (!text) return [];
-    return [...text.matchAll(/@([^\s@][^@]*?)(?=\s@|\s*$|\s+[^@])/g)]
-        .map(m => m[1]!.trim())
-        .filter(Boolean);
+    const found: string[] = [];
+    // sort ยาวสุดก่อนเพื่อ greedy match
+    const sorted = [...knownNames].sort((a, b) => b.length - a.length);
+    
+    const atRegex = /@/g;
+    let match: RegExpExecArray | null;
+    while ((match = atRegex.exec(text)) !== null) {
+        const after = text.slice(match.index + 1);
+        let matched = false;
+        
+        // 1. ลอง match กับชื่อที่รู้จักก่อน
+        for (const name of sorted) {
+            if (after.startsWith(name) && (after.length === name.length || /[\s\n\r,.;:!?]|$/.test(after[name.length] ?? ''))) {
+                found.push(name);
+                matched = true;
+                break;
+            }
+        }
+        
+        // 2. ถ้าไม่เจอชื่อที่รู้จัก ลองจับรูปแบบที่อาจจะเป็นชื่อ (สูงสุด 3 คำ)
+        if (!matched) {
+            // จับคำที่ไม่ใช่ whitespace/newline/symbol และอาจมีช่องว่างคั่น
+            const m = after.match(/^([^\s@\n\r,.;:!?]+(?:\s+[^\s@\n\r,.;:!?]+){0,2})/);
+            if (m) {
+                found.push(m[1]!.trim());
+            }
+        }
+    }
+    return [...new Set(found)];
 }
 
 function normalizePost(p: any): any {
@@ -178,11 +204,12 @@ function normalizePost(p: any): any {
     });
 
     // extract mention names จาก post text + comment texts
+    const knownNames = Array.from(knownUsers.values()).map((u: any) => u.name as string);
     const allTexts = [
         p.text,
         ...(p.comments ?? []).map((c: any) => c.text),
     ];
-    const mentionNames = new Set(allTexts.flatMap(extractMentionNames));
+    const mentionNames = new Set(allTexts.flatMap(t => extractMentionNames(t, knownNames)));
 
     // resolve mention names → user objects จาก knownUsers
     const mentionedUsers: any[] = [];
@@ -218,6 +245,44 @@ function normalizePost(p: any): any {
         sharedFrom: undefined,
         mentionedUsers: mentionedUsers.length > 0 ? mentionedUsers : undefined,
     };
+}
+
+/** async version — query users ที่ถูก mention แต่ไม่อยู่ใน knownUsers */
+async function normalizePostWithMentions(p: any): Promise<any> {
+    // normalize ก่อน (sync)
+    const normalized = normalizePost(p);
+
+    // หา mention names ที่ยังไม่ resolve
+    const allTexts = [p.text, ...(p.comments ?? []).map((c: any) => c.text)];
+    const knownNames = [
+        p.user?.name,
+        ...(p.comments ?? []).map((c: any) => c.user?.name),
+    ].filter(Boolean) as string[];
+
+    const allMentionNames = new Set(allTexts.flatMap(t => extractMentionNames(t, knownNames)));
+    const resolvedNames = new Set((normalized.mentionedUsers ?? []).map((u: any) => u.name));
+    const unresolvedNames = [...allMentionNames].filter(n => !resolvedNames.has(n));
+
+    if (unresolvedNames.length > 0) {
+        const { searchUsersByName } = await import('@/prisma/user');
+        const extra: any[] = [];
+        const seenIds = new Set((normalized.mentionedUsers ?? []).map((u: any) => u.id));
+        for (const name of unresolvedNames) {
+            const users = await searchUsersByName(name);
+            for (const u of users) {
+                const id = String(u.id);
+                if (!seenIds.has(id)) {
+                    seenIds.add(id);
+                    extra.push({ id, name: u.name, profileImage: u.profileImage ?? '' });
+                }
+            }
+        }
+        if (extra.length > 0) {
+            normalized.mentionedUsers = [...(normalized.mentionedUsers ?? []), ...extra];
+        }
+    }
+
+    return normalized;
 }
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -372,13 +437,13 @@ async function notifyMentions(
     refId: number,
     excludeIds: Set<number> = new Set(),
 ): Promise<void> {
-    const mentions = [...text.matchAll(/@([^\s@]+(?:\s[^\s@]+)*)/g)].map(m => m[1]!.trim());
-    if (mentions.length === 0) return;
+    const mentionNames = extractMentionNames(text);
+    if (mentionNames.length === 0) return;
 
     const { searchUsersByName } = await import('@/prisma/user');
     const notified = new Set<number>();
 
-    for (const name of mentions) {
+    for (const name of mentionNames) {
         const users = await searchUsersByName(name);
         for (const user of users) {
             if (user.id === fromUserId) continue;
@@ -410,7 +475,7 @@ async function recvGetFeed(socket: WS, packet: Packet): Promise<void> {
     const offset = packet.readInt();
     const posts = await getFeedPosts(userId, 10, offset);
 
-    const normalized = posts.map(normalizePost);
+    const normalized = await Promise.all(posts.map(normalizePostWithMentions));
 
     const p = new Packet(PacketSC.POST_LIST);
     p.writeString(JSON.stringify(normalized));
@@ -423,7 +488,7 @@ async function recvGetUserPosts(socket: WS, packet: Packet): Promise<void> {
     const offset = packet.readInt();
     const posts = await getPostsByUser(userId, 10, offset);
 
-    const normalized = posts.map(normalizePost);
+    const normalized = await Promise.all(posts.map(normalizePostWithMentions));
 
     const p = new Packet(PacketSC.USER_POST_LIST);
     p.writeString(JSON.stringify(normalized));
@@ -468,7 +533,8 @@ async function recvCreatePost(socket: WS, packet: Packet): Promise<void> {
 
     // broadcast โพสต์ใหม่ให้ทุกคน
     const p = new Packet(PacketSC.NEW_POST);
-    p.writeString(JSON.stringify(normalizePost(post)));
+    const normalized = await normalizePostWithMentions(post);
+    p.writeString(JSON.stringify(normalized));
     broadcast(p.toBuffer());
 }
 

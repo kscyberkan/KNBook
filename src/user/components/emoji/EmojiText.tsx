@@ -38,7 +38,7 @@ export function parseEmojiText(
       return (
         <span
           key={i}
-          className="text-[#5B65F2] font-medium cursor-pointer hover:underline"
+          className="text-[#5B65F2] font-semibold cursor-pointer hover:bg-[#5B65F2]/15 bg-[#5B65F2]/5 px-1 py-0.5 rounded-lg transition-colors mx-0.5"
           onClick={() => {
             if (user && onMentionClick) {
               onMentionClick(user);

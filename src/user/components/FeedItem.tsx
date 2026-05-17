@@ -791,7 +791,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                     comments={comments}
                     onComment={onComment}
                     currentUser={{ id: Global.user.id, name: Global.user.name, profileImage: Global.user.profileImage }}
-                    mentionUsers={mentionUsers}
+                    mentionUsers={allMentionUsers}
                   />
                 );
               })}
@@ -808,7 +808,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
         }}
         mentionUsers={Array.from(
           new Map(
-            [...mentionUsers, ...comments.map(c => c.user)]
+            [...allMentionUsers, ...comments.map(c => c.user)]
               .filter(u => u.id !== Global.user.id)
               .map(u => [u.id, u])
           ).values()

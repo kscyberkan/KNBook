@@ -45,7 +45,8 @@ const server = serve({
             const { normalizePostForApi } = await import('@user/network/handler');
             const post = await getPostById(Number(req.params.id));
             if (!post) return new Response('Not found', { status: 404 });
-            return Response.json(normalizePostForApi(post));
+            const normalized = await normalizePostForApi(post);
+            return Response.json(normalized);
         },
 
         // Dictionary — parse CSV → nested JSON
