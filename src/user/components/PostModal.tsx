@@ -9,9 +9,10 @@ interface PostModalProps {
   postId: string | null;
   onClose: () => void;
   onUserClick?: (user: User) => void;
+  mentionUsers?: User[];
 }
 
-export const PostModal: React.FC<PostModalProps> = ({ postId, onClose, onUserClick }) => {
+export const PostModal: React.FC<PostModalProps> = ({ postId, onClose, onUserClick, mentionUsers = [] }) => {
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -78,6 +79,8 @@ export const PostModal: React.FC<PostModalProps> = ({ postId, onClose, onUserCli
                   }
                   onShare={() => net.createPost({ sharedFromId: Number(post.id) })}
                   onCommentUserClick={(u) => { onUserClick?.(u); onClose(); }}
+                  mentionUsers={mentionUsers}
+                  mentionedUsers={post.mentionedUsers}
                 />
               ) : (
                 <div className="text-center py-16 text-gray-400 text-sm">ไม่พบโพสต์</div>

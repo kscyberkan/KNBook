@@ -880,6 +880,7 @@ export default function PageManager() {
         postId={openPostId}
         onClose={handleClosePost}
         onUserClick={navigateToProfile}
+        mentionUsers={friends}
       />
 
       {/* Create Group Modal */}
