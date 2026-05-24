@@ -33,9 +33,10 @@ interface ProfileProps {
   onUserClick?: (user: User) => void;
   onPostClick?: (postId: string) => void;
   mentionUsers?: User[];
+  scrollContainerRef?: React.RefObject<HTMLElement | null>;
 }
 
-export default function Profile({ user, onEditClick, onSharePost, onUserClick, onPostClick, mentionUsers = [] }: ProfileProps) {
+export default function Profile({ user, onEditClick, onSharePost, onUserClick, onPostClick, mentionUsers = [], scrollContainerRef }: ProfileProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const displayUser: User = user || Global.user;
@@ -164,12 +165,36 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick, o
     return () => { unsub(); unsubBlock(); };
   }, [displayUser.id, isMe]);
 
-  const loadMore = () => {
+  const loadMore = React.useCallback(() => {
     if (isFetchingRef.current || !hasMore) return;
     isFetchingRef.current = true;
     setLoadingMore(true);
-    net.getUserPosts(Number(displayUser.id), offsetRef.current);
-  };
+    setTimeout(() => {
+      net.getUserPosts(Number(displayUser.id), offsetRef.current);
+    }, 1000);
+  }, [hasMore, displayUser.id]);
+
+  // scroll-based load more
+  React.useEffect(() => {
+    const handleScroll = () => {
+      const container = scrollContainerRef?.current;
+      if (container) {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        if (scrollHeight - scrollTop - clientHeight < 400) loadMore();
+      } else {
+        const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+        if (scrollHeight - scrollTop - clientHeight < 400) loadMore();
+      }
+    };
+
+    const container = scrollContainerRef?.current;
+    if (container) container.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      container?.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [loadMore, scrollContainerRef]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -444,19 +469,23 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick, o
             )}
 
             {posts.length > 0 && (
-              <div className="py-4 flex justify-center">
+              <div className="py-8 flex justify-center">
                 {loadingMore ? (
-                  <div className="flex items-center gap-2 text-gray-400 text-sm">
-                    <div className="w-5 h-5 border-2 border-[#5B65F2]/30 border-t-[#5B65F2] rounded-full animate-spin" />
-                    <span>กำลังโหลดเพิ่ม...</span>
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      {[0, 1, 2].map(i => (
+                        <div
+                          key={i}
+                          className="w-2 h-2 rounded-full bg-[#5B65F2]/60"
+                          style={{ animation: `bounce 0.8s ease-in-out ${i * 0.15}s infinite` }}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs text-gray-400">{t('feed.loadingMore')}</span>
                   </div>
-                ) : hasMore ? (
-                  <button onClick={loadMore} className="px-6 py-2.5 bg-white border border-gray-200 hover:border-[#5B65F2]/40 hover:bg-[#5B65F2]/5 text-gray-600 hover:text-[#5B65F2] rounded-xl text-sm font-medium transition-all shadow-sm">
-                    โหลดเพิ่ม
-                  </button>
-                ) : (
+                ) : !hasMore ? (
                   <p className="text-xs text-gray-300">{tp('profile.postsSummary', { n: posts.length })}</p>
-                )}
+                ) : null}
               </div>
             )}
           </div>

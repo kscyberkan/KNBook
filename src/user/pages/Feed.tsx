@@ -13,11 +13,12 @@ interface FeedProps {
     onSharePost?: (post: Post) => void;
     onPostClick?: (postId: string) => void;
     mentionUsers?: User[];
+    scrollContainerRef?: React.RefObject<HTMLElement | null>;
 }
 
 type FeedFilter = 'all' | 'group' | 'general';
 
-function Feed({ onUserClick, onSharePost, onPostClick, mentionUsers = [] }: FeedProps) {
+function Feed({ onUserClick, onSharePost, onPostClick, mentionUsers = [], scrollContainerRef }: FeedProps) {
     const [posts, setPosts] = React.useState<Post[]>([]);
     const [loading, setLoading] = React.useState(true);
     const [loadingMore, setLoadingMore] = React.useState(false);
@@ -132,21 +133,40 @@ function Feed({ onUserClick, onSharePost, onPostClick, mentionUsers = [] }: Feed
         if (isFetchingRef.current || !hasMore) return;
         isFetchingRef.current = true;
         setLoadingMore(true);
-        net.getFeed(offsetRef.current);
+        // แสดง loading อย่างน้อย 1 วินาทีก่อนโหลดจริง
+        setTimeout(() => {
+            net.getFeed(offsetRef.current);
+        }, 1000);
     }, [hasMore]);
 
-    // Intersection Observer — auto load more เมื่อ scroll ถึง sentinel
+    // scroll-based load more
     const sentinelRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        const el = sentinelRef.current;
-        if (!el) return;
-        const observer = new IntersectionObserver(
-            entries => { if (entries[0]?.isIntersecting) loadMore(); },
-            { threshold: 0.1 }
-        );
-        observer.observe(el);
-        return () => observer.disconnect();
-    }, [loadMore]);
+        const handleScroll = () => {
+            // ลอง scroll container ที่ส่งมา ถ้าไม่มีให้ fallback ไปที่ document
+            const container = scrollContainerRef?.current;
+            if (container) {
+                const { scrollTop, scrollHeight, clientHeight } = container;
+                if (scrollHeight - scrollTop - clientHeight < 400) loadMore();
+            } else {
+                // fallback: ใช้ document scroll
+                const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+                if (scrollHeight - scrollTop - clientHeight < 400) loadMore();
+            }
+        };
+
+        // attach ทั้ง container และ window เพื่อ cover ทุกกรณี
+        const container = scrollContainerRef?.current;
+        if (container) {
+            container.addEventListener('scroll', handleScroll, { passive: true });
+        }
+        window.addEventListener('scroll', handleScroll, { passive: true });
+
+        return () => {
+            container?.removeEventListener('scroll', handleScroll);
+            window.removeEventListener('scroll', handleScroll);
+        };
+    }, [loadMore, scrollContainerRef]);
 
     const handleNewPost = async (postData: {
         text: string;
@@ -403,11 +423,19 @@ function Feed({ onUserClick, onSharePost, onPostClick, mentionUsers = [] }: Feed
                 </div>
 
                 {/* Infinite scroll sentinel */}
-                <div ref={sentinelRef} className="py-6 flex justify-center">
+                <div ref={sentinelRef} className="py-8 flex justify-center">
                     {loadingMore && (
-                        <div className="flex items-center gap-2 text-gray-400 text-sm">
-                            <div className="w-5 h-5 border-2 border-[#5B65F2]/30 border-t-[#5B65F2] rounded-full animate-spin" />
-                            <span>{t('feed.loadingMore')}</span>
+                        <div className="flex flex-col items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                                {[0, 1, 2].map(i => (
+                                    <div
+                                        key={i}
+                                        className="w-2 h-2 rounded-full bg-[#5B65F2]/60"
+                                        style={{ animation: `bounce 0.8s ease-in-out ${i * 0.15}s infinite` }}
+                                    />
+                                ))}
+                            </div>
+                            <span className="text-xs text-gray-400">{t('feed.loadingMore')}</span>
                         </div>
                     )}
                     {!hasMore && posts.length > 0 && (

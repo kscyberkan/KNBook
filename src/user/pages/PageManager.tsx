@@ -358,9 +358,9 @@ export default function PageManager() {
   const renderPage = () => {
     switch (currentPage) {
       case 'feed':
-        return <Feed onUserClick={navigateToProfile} onSharePost={() => navigateToProfile(undefined)} onPostClick={handleOpenPost} mentionUsers={friends} />;
+        return <Feed onUserClick={navigateToProfile} onSharePost={() => navigateToProfile(undefined)} onPostClick={handleOpenPost} mentionUsers={friends} scrollContainerRef={mainScrollRef} />;
       case 'profile':
-        return <Profile user={selectedUser} onEditClick={navigateToEditProfile} onSharePost={() => navigateToProfile(undefined)} onUserClick={navigateToProfile} onPostClick={handleOpenPost} mentionUsers={friends} />;
+        return <Profile user={selectedUser} onEditClick={navigateToEditProfile} onSharePost={() => navigateToProfile(undefined)} onUserClick={navigateToProfile} onPostClick={handleOpenPost} mentionUsers={friends} scrollContainerRef={mainScrollRef} />;
       case 'edit-profile':
         return <EditProfile onBack={() => setCurrentPage('profile')} />;
       case 'bookmarks':
