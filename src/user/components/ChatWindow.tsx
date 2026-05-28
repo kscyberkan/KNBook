@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Paperclip, Image as ImageIcon, FileText, Film, ZoomIn, Smile } from 'lucide-react';
+import { X, Send, Paperclip, Image as ImageIcon, FileText, Film, ZoomIn, Smile, Video, Phone } from 'lucide-react';
 import { type User } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VideoPlayer } from './VideoPlayer';
@@ -159,8 +159,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ friend, onClose, onUserC
           </div>
         </div>
         <div className="flex items-center gap-0.5">
-          {/*<button onClick={() => onCall?.('audio')} className="p-2 hover:bg-white/15 rounded-full transition-colors" title="โทรด้วยเสียง"><Phone size={16} /></button>
-          <button onClick={() => onCall?.('video')} className="p-2 hover:bg-white/15 rounded-full transition-colors" title="Video call"><Video size={16} /></button>*/}
+          <button onClick={() => onCall?.('audio')} className="p-2 hover:bg-white/15 rounded-full transition-colors" title="โทรด้วยเสียง"><Phone size={16} /></button>
+          <button onClick={() => onCall?.('video')} className="p-2 hover:bg-white/15 rounded-full transition-colors" title="Video call"><Video size={16} /></button>
           <button onClick={onClose} className="p-2 hover:bg-white/15 rounded-full transition-colors"><X size={17} /></button>
         </div>
       </div>

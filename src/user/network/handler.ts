@@ -289,7 +289,6 @@ async function normalizePostWithMentions(p: any): Promise<any> {
 async function recvLogin(socket: WS, packet: Packet): Promise<void> {
     const username = packet.readString();
     const password = packet.readString();
-
     // rate limit: 10 ครั้ง/นาที ต่อ socket
     const socketId = (socket as any).remoteAddress ?? 'unknown';
     if (!checkRateLimit(socketId as any, 'login', 10, 60_000)) {
@@ -298,7 +297,7 @@ async function recvLogin(socket: WS, packet: Packet): Promise<void> {
         socket.send(p.toBuffer());
         return;
     }
-
+    
     const user = await getUserByUsername(username);
     if (!user || !(await bcrypt.compare(password, user.password))) {
         const p = new Packet(PacketSC.REJECT_LOGIN);
@@ -306,7 +305,7 @@ async function recvLogin(socket: WS, packet: Packet): Promise<void> {
         socket.send(p.toBuffer());
         return;
     }
-
+    
     if ((user as any).banned) {
         const p = new Packet(PacketSC.REJECT_LOGIN);
         p.writeString('บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
