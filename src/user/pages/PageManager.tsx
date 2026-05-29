@@ -91,6 +91,27 @@ function formatTime(isoString: string): string {
   return `${days} วันที่แล้ว`;
 }
 
+const requestUserMedia = async (constraints: MediaStreamConstraints): Promise<MediaStream> => {
+  if (typeof navigator === 'undefined') {
+    throw new Error('navigator unavailable');
+  }
+
+  const media = navigator.mediaDevices;
+  if (media && typeof media.getUserMedia === 'function') {
+    return media.getUserMedia(constraints);
+  }
+
+  const navAny = navigator as any;
+  const legacyGetUserMedia = navAny.getUserMedia || navAny.webkitGetUserMedia || navAny.mozGetUserMedia;
+  if (typeof legacyGetUserMedia === 'function') {
+    return new Promise((resolve, reject) => {
+      legacyGetUserMedia.call(navigator, constraints, resolve, reject);
+    });
+  }
+
+  throw new Error('Media devices not supported');
+};
+
 export default function PageManager() {
   const [currentPage, setCurrentPage] = useState<PageType>('feed');
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
@@ -713,11 +734,13 @@ export default function PageManager() {
                     }}
                     onCall={async (callType) => {
                       try {
-                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' });
+                        const stream = await requestUserMedia({ audio: true, video: callType === 'video' });
                         setActiveCall({ friend: activeChat, callType, stream });
                       } catch (err: any) {
                         console.error('[Call] getUserMedia error:', err?.name, err?.message, err);
-                        const msg = err?.name === 'NotAllowedError'
+                        const msg = err?.message === 'Media devices not supported'
+                          ? 'เบราว์เซอร์ไม่รองรับการโทรด้วยกล้อง/ไมโครโฟน'
+                          : err?.name === 'NotAllowedError'
                           ? t('media.permissionDenied')
                           : err?.name === 'NotFoundError'
                           ? t('media.notFound')
@@ -919,11 +942,13 @@ export default function PageManager() {
             call={incomingCall}
             onAccept={async () => {
               try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: incomingCall.callType === 'video' });
+                const stream = await requestUserMedia({ audio: true, video: incomingCall.callType === 'video' });
                 setAnswerCall({ ...incomingCall, stream });
                 setIncomingCall(null);
               } catch (err: any) {
-                const msg = err?.name === 'NotAllowedError'
+                const msg = err?.message === 'Media devices not supported'
+                  ? 'เบราว์เซอร์ไม่รองรับการโทรด้วยกล้อง/ไมโครโฟน'
+                  : err?.name === 'NotAllowedError'
                   ? 'กรุณาอนุญาตการเข้าถึงกล้อง/ไมโครโฟนในการตั้งค่าเบราว์เซอร์'
                   : err?.name === 'NotFoundError'
                   ? 'ไม่พบกล้องหรือไมโครโฟน'

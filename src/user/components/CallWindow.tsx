@@ -27,6 +27,41 @@ const ICE_SERVERS = [
     },
 ];
 
+const hasMediaDevices = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  const media = navigator.mediaDevices;
+  return !!(media?.getUserMedia || (navigator as any).getUserMedia || (navigator as any).webkitGetUserMedia || (navigator as any).mozGetUserMedia);
+};
+
+const getUserMedia = async (constraints: MediaStreamConstraints): Promise<MediaStream> => {
+  if (typeof navigator === 'undefined') {
+    throw new Error('navigator unavailable');
+  }
+  const media = navigator.mediaDevices;
+  if (media && typeof media.getUserMedia === 'function') {
+    return media.getUserMedia(constraints);
+  }
+  const navAny = navigator as any;
+  const legacyGetUserMedia = navAny.getUserMedia || navAny.webkitGetUserMedia || navAny.mozGetUserMedia;
+  if (typeof legacyGetUserMedia === 'function') {
+    return new Promise((resolve, reject) => {
+      legacyGetUserMedia.call(navigator, constraints, resolve, reject);
+    });
+  }
+  throw new Error('Media devices not supported');
+};
+
+const enumerateDevices = async (): Promise<MediaDeviceInfo[]> => {
+  if (typeof navigator === 'undefined') {
+    return [];
+  }
+  const media = navigator.mediaDevices;
+  if (media && typeof media.enumerateDevices === 'function') {
+    return media.enumerateDevices();
+  }
+  return [];
+};
+
 // ─── Device Settings Panel ───────────────────────────────────────────────────
 
 interface DeviceSettingsProps {
@@ -202,7 +237,7 @@ export const CallWindow: React.FC<CallerProps> = ({ friend, callType, localStrea
   // Enumerate devices
   useEffect(() => {
     const getDevices = async () => {
-      const devices = await navigator.mediaDevices.enumerateDevices();
+      const devices = await enumerateDevices();
       const audioDevs = devices.filter((d) => d.kind === 'audioinput');
       const videoDevs = devices.filter((d) => d.kind === 'videoinput');
       const audioOutDevs = devices.filter((d) => d.kind === 'audiooutput');
@@ -214,8 +249,11 @@ export const CallWindow: React.FC<CallerProps> = ({ friend, callType, localStrea
       if (audioOutDevs.length > 0) setSelectedOutputId(audioOutDevs[0].deviceId);
     };
     getDevices();
-    navigator.mediaDevices.addEventListener('devicechange', getDevices);
-    return () => navigator.mediaDevices.removeEventListener('devicechange', getDevices);
+    if (hasMediaDevices() && navigator.mediaDevices?.addEventListener) {
+      navigator.mediaDevices.addEventListener('devicechange', getDevices);
+      return () => navigator.mediaDevices.removeEventListener('devicechange', getDevices);
+    }
+    return undefined;
   }, []);
 
   const switchDevice = useCallback(
@@ -225,7 +263,7 @@ export const CallWindow: React.FC<CallerProps> = ({ friend, callType, localStrea
           audio: kind === 'audio' ? { deviceId: { exact: deviceId } } : undefined,
           video: kind === 'video' ? { deviceId: { exact: deviceId } } : undefined,
         };
-        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+        const newStream = await getUserMedia(constraints);
         const newTrack = newStream.getTracks()[0];
         const oldTrack = streamRef.current
           .getTracks()
@@ -312,30 +350,72 @@ export const CallWindow: React.FC<CallerProps> = ({ friend, callType, localStrea
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[9999] bg-black/90 flex flex-col items-center justify-center">
-      {callType === 'video' && <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />}
-      
-      <DeviceSettings
-        audioDevices={audioDevices}
-        videoDevices={videoDevices}
-        audioOutputDevices={audioOutputDevices}
-        selectedAudioId={selectedAudioId}
-        selectedVideoId={selectedVideoId}
-        selectedOutputId={selectedOutputId}
-        onAudioChange={(id) => switchDevice('audio', id)}
-        onVideoChange={(id) => switchDevice('video', id)}
-        onOutputChange={switchOutput}
-        isOpen={showSettings}
-        onToggle={() => setShowSettings(!showSettings)}
-      />
+      className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex items-center justify-center p-3">
+      <div className="relative w-full max-w-4xl min-h-[88vh] rounded-[32px] border border-white/10 bg-[#08101e]/95 shadow-[0_0_90px_rgba(0,0,0,0.65)] overflow-hidden font-mono text-white">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-[#05101a]/95 border-b border-white/10">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-[#ff5f56]" />
+            <span className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+            <span className="w-3 h-3 rounded-full bg-[#27c93f]" />
+            <span className="text-[0.72rem] uppercase tracking-[0.3em] text-cyan-300">terminal call</span>
+          </div>
+          <div className="text-xs text-slate-400">{friend.name}</div>
+        </div>
 
-      <div className="flex flex-col items-center gap-4 z-10">
-        <img src={friend.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.name}`} className="w-28 h-28 rounded-full object-cover ring-4 ring-white/20 shadow-2xl" />
-        <div className="text-white text-xl font-bold">{friend.name}</div>
+        <DeviceSettings
+          audioDevices={audioDevices}
+          videoDevices={videoDevices}
+          audioOutputDevices={audioOutputDevices}
+          selectedAudioId={selectedAudioId}
+          selectedVideoId={selectedVideoId}
+          selectedOutputId={selectedOutputId}
+          onAudioChange={(id) => switchDevice('audio', id)}
+          onVideoChange={(id) => switchDevice('video', id)}
+          onOutputChange={switchOutput}
+          isOpen={showSettings}
+          onToggle={() => setShowSettings(!showSettings)}
+        />
+
+        <div className="relative flex flex-col h-full">
+          <div className="flex-1 p-4 sm:p-6">
+            {callType === 'video' ? (
+              <div className="relative w-full h-full min-h-[320px] rounded-3xl overflow-hidden bg-black/80 border border-white/10">
+                <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/70" />
+                <div className="absolute left-4 top-4 rounded-full bg-black/70 px-3 py-1 text-xs text-green-300 uppercase tracking-[0.18em]">
+                  {state === 'calling' ? 'Connecting...' : 'Live Video'}
+                </div>
+                {state === 'calling' && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-center px-4 text-sm text-green-200">
+                    กำลังโทรหา {friend.name}...
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="w-full h-full min-h-[280px] rounded-3xl border border-white/10 bg-[#06111b] p-6 flex flex-col items-center justify-center gap-3 text-green-300">
+                <div className="w-24 h-24 rounded-full border border-white/10 overflow-hidden bg-slate-800">
+                  <img src={friend.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.name}`} className="w-full h-full object-cover" />
+                </div>
+                <div className="text-lg font-semibold text-white">{friend.name}</div>
+                <div className="text-sm text-slate-400">Voice call</div>
+                <div className="w-full rounded-2xl border border-white/10 bg-black/70 p-3 text-left text-sm leading-6 text-green-200">
+                  <div>&gt; callType: audio</div>
+                  <div>&gt; status: {state === 'calling' ? 'กำลังโทร...' : 'เชื่อมต่อแล้ว'}</div>
+                  <div>&gt; duration: {duration > 0 ? `${Math.floor(duration / 60).toString().padStart(2, '0')}:${(duration % 60).toString().padStart(2, '0')}` : '00:00'}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="px-4 pb-5">
+            {callType === 'video' && (
+              <video ref={localVideoRef} autoPlay playsInline muted className="absolute bottom-24 right-4 w-32 h-24 rounded-xl object-cover border-2 border-white/20 z-20 shadow-2xl" />
+            )}
+            <CallControls micOn={micOn} camOn={camOn} showCam={callType === 'video'} onToggleMic={toggleMic} onToggleCam={toggleCam} onEnd={endCall}
+              duration={duration} label={state === 'calling' ? 'กำลังโทร...' : 'กำลังคุย'} />
+          </div>
+        </div>
       </div>
-      {callType === 'video' && <video ref={localVideoRef} autoPlay playsInline muted className="absolute bottom-24 right-4 w-32 h-24 rounded-xl object-cover border-2 border-white/20 z-20" />}
-      <CallControls micOn={micOn} camOn={camOn} showCam={callType === 'video'} onToggleMic={toggleMic} onToggleCam={toggleCam} onEnd={endCall}
-        duration={duration} label={state === 'calling' ? 'กำลังโทร...' : 'กำลังคุย'} />
     </motion.div>
   );
 };
@@ -373,7 +453,7 @@ export const AnswerCallWindow: React.FC<CalleeProps> = ({ fromId, fromName, from
   // Enumerate devices
   useEffect(() => {
     const getDevices = async () => {
-      const devices = await navigator.mediaDevices.enumerateDevices();
+      const devices = await enumerateDevices();
       const audioDevs = devices.filter((d) => d.kind === 'audioinput');
       const videoDevs = devices.filter((d) => d.kind === 'videoinput');
       const audioOutDevs = devices.filter((d) => d.kind === 'audiooutput');
@@ -385,8 +465,11 @@ export const AnswerCallWindow: React.FC<CalleeProps> = ({ fromId, fromName, from
       if (audioOutDevs.length > 0) setSelectedOutputId(audioOutDevs[0].deviceId);
     };
     getDevices();
-    navigator.mediaDevices.addEventListener('devicechange', getDevices);
-    return () => navigator.mediaDevices.removeEventListener('devicechange', getDevices);
+    if (hasMediaDevices() && navigator.mediaDevices?.addEventListener) {
+      navigator.mediaDevices.addEventListener('devicechange', getDevices);
+      return () => navigator.mediaDevices.removeEventListener('devicechange', getDevices);
+    }
+    return undefined;
   }, []);
 
   const switchDevice = useCallback(
@@ -396,7 +479,7 @@ export const AnswerCallWindow: React.FC<CalleeProps> = ({ fromId, fromName, from
           audio: kind === 'audio' ? { deviceId: { exact: deviceId } } : undefined,
           video: kind === 'video' ? { deviceId: { exact: deviceId } } : undefined,
         };
-        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+        const newStream = await getUserMedia(constraints);
         const newTrack = newStream.getTracks()[0];
         const oldTrack = streamRef.current
           .getTracks()
@@ -479,30 +562,67 @@ export const AnswerCallWindow: React.FC<CalleeProps> = ({ fromId, fromName, from
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[9999] bg-black/90 flex flex-col items-center justify-center">
-      {callType === 'video' && <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />}
-      
-      <DeviceSettings
-        audioDevices={audioDevices}
-        videoDevices={videoDevices}
-        audioOutputDevices={audioOutputDevices}
-        selectedAudioId={selectedAudioId}
-        selectedVideoId={selectedVideoId}
-        selectedOutputId={selectedOutputId}
-        onAudioChange={(id) => switchDevice('audio', id)}
-        onVideoChange={(id) => switchDevice('video', id)}
-        onOutputChange={switchOutput}
-        isOpen={showSettings}
-        onToggle={() => setShowSettings(!showSettings)}
-      />
+      className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex items-center justify-center p-3">
+      <div className="relative w-full max-w-4xl min-h-[88vh] rounded-[32px] border border-white/10 bg-[#08101e]/95 shadow-[0_0_90px_rgba(0,0,0,0.65)] overflow-hidden font-mono text-white">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-[#05101a]/95 border-b border-white/10">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-[#ff5f56]" />
+            <span className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
+            <span className="w-3 h-3 rounded-full bg-[#27c93f]" />
+            <span className="text-[0.72rem] uppercase tracking-[0.3em] text-cyan-300">terminal call</span>
+          </div>
+          <div className="text-xs text-slate-400">{fromName}</div>
+        </div>
 
-      <div className="flex flex-col items-center gap-4 z-10">
-        <img src={fromAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${fromId}`} className="w-28 h-28 rounded-full object-cover ring-4 ring-white/20" />
-        <div className="text-white text-xl font-bold">{fromName}</div>
+        <DeviceSettings
+          audioDevices={audioDevices}
+          videoDevices={videoDevices}
+          audioOutputDevices={audioOutputDevices}
+          selectedAudioId={selectedAudioId}
+          selectedVideoId={selectedVideoId}
+          selectedOutputId={selectedOutputId}
+          onAudioChange={(id) => switchDevice('audio', id)}
+          onVideoChange={(id) => switchDevice('video', id)}
+          onOutputChange={switchOutput}
+          isOpen={showSettings}
+          onToggle={() => setShowSettings(!showSettings)}
+        />
+
+        <div className="relative flex flex-col h-full">
+          <div className="flex-1 p-4 sm:p-6">
+            {callType === 'video' ? (
+              <div className="relative w-full h-full min-h-[320px] rounded-3xl overflow-hidden bg-black/80 border border-white/10">
+                <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/70" />
+                <div className="absolute left-4 top-4 rounded-full bg-black/70 px-3 py-1 text-xs text-green-300 uppercase tracking-[0.18em]">
+                  Live Video
+                </div>
+              </div>
+            ) : (
+              <div className="w-full h-full min-h-[280px] rounded-3xl border border-white/10 bg-[#06111b] p-6 flex flex-col items-center justify-center gap-3 text-green-300">
+                <div className="w-24 h-24 rounded-full border border-white/10 overflow-hidden bg-slate-800">
+                  <img src={fromAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${fromId}`} className="w-full h-full object-cover" />
+                </div>
+                <div className="text-lg font-semibold text-white">{fromName}</div>
+                <div className="text-sm text-slate-400">Voice call</div>
+                <div className="w-full rounded-2xl border border-white/10 bg-black/70 p-3 text-left text-sm leading-6 text-green-200">
+                  <div>&gt; callType: audio</div>
+                  <div>&gt; status: เชื่อมต่อแล้ว</div>
+                  <div>&gt; duration: {duration > 0 ? `${Math.floor(duration / 60).toString().padStart(2, '0')}:${(duration % 60).toString().padStart(2, '0')}` : '00:00'}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="px-4 pb-5">
+            {callType === 'video' && (
+              <video ref={localVideoRef} autoPlay playsInline muted className="absolute bottom-24 right-4 w-32 h-24 rounded-xl object-cover border-2 border-white/20 z-20 shadow-2xl" />
+            )}
+            <CallControls micOn={micOn} camOn={camOn} showCam={callType === 'video'} onToggleMic={toggleMic} onToggleCam={toggleCam} onEnd={endCall}
+              duration={duration} label="กำลังคุย" />
+          </div>
+        </div>
       </div>
-      {callType === 'video' && <video ref={localVideoRef} autoPlay playsInline muted className="absolute bottom-24 right-4 w-32 h-24 rounded-xl object-cover border-2 border-white/20 z-20" />}
-      <CallControls micOn={micOn} camOn={camOn} showCam={callType === 'video'} onToggleMic={toggleMic} onToggleCam={toggleCam} onEnd={endCall}
-        duration={duration} label="กำลังคุย" />
     </motion.div>
   );
 };
@@ -525,22 +645,30 @@ interface IncomingProps {
 
 export const IncomingCallModal: React.FC<IncomingProps> = ({ call, onAccept, onReject }) => (
   <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }}
-    className="fixed bottom-24 right-6 z-[9998] bg-gray-900 text-white rounded-2xl shadow-2xl p-4 w-72">
+    className="fixed inset-x-4 bottom-6 z-[9998] mx-auto max-w-md rounded-3xl border border-white/10 bg-[#08101e]/95 shadow-[0_24px_80px_rgba(0,0,0,0.35)] p-4 font-mono text-white">
+    <div className="flex items-center justify-between gap-3 rounded-2xl bg-[#05101a]/95 px-4 py-3 border border-white/10 mb-4">
+      <div className="flex items-center gap-2">
+        <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
+        <span className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+        <span className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
+      </div>
+      <div className="text-xs uppercase tracking-[0.3em] text-cyan-300">incoming</div>
+    </div>
     <div className="flex items-center gap-3 mb-4">
-      <img src={call.fromAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${call.fromId}`} className="w-12 h-12 rounded-full object-cover" />
+      <img src={call.fromAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${call.fromId}`} className="w-14 h-14 rounded-full object-cover border border-white/10" />
       <div>
-        <div className="font-bold text-sm">{call.fromName || `User #${call.fromId}`}</div>
-        <div className="text-xs text-gray-400 flex items-center gap-1">
+        <div className="font-bold text-sm text-white">{call.fromName || `User #${call.fromId}`}</div>
+        <div className="text-xs text-slate-400 flex items-center gap-1">
           {call.callType === 'video' ? <Video size={11} /> : <Phone size={11} />}
           {call.callType === 'video' ? 'Video call' : 'Voice call'} เข้ามา
         </div>
       </div>
     </div>
-    <div className="flex gap-3">
-      <button onClick={onReject} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-500 hover:bg-red-600 rounded-xl text-sm font-medium transition-colors">
+    <div className="grid gap-3 sm:grid-cols-2">
+      <button onClick={onReject} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-red-500/90 hover:bg-red-600/90 py-3 text-sm font-medium transition-colors">
         <PhoneOff size={16} /> ปฏิเสธ
       </button>
-      <button onClick={onAccept} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-500 hover:bg-green-600 rounded-xl text-sm font-medium transition-colors">
+      <button onClick={onAccept} className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-green-500/90 hover:bg-green-600/90 py-3 text-sm font-medium transition-colors">
         <Phone size={16} /> รับสาย
       </button>
     </div>
