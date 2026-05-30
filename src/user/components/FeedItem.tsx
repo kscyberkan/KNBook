@@ -39,13 +39,13 @@ interface FeedItemProps {
 }
 
 function SharedPost({ post, isSub, onUserClick }: { post?: Post; isSub?: boolean; onUserClick?: (user: User) => void }) {
-  if (!post) return null;
+  if (!post || !post.user) return null;
   const { t, lang } = useDictionary();
   return (
     <div className={`rounded-xl overflow-hidden ${isSub ? 'mx-0 border-t-1' : 'mx-3 mb-3 border border-gray-200'} bg-gray-50 border-gray-200`}>
       <div className="p-3 flex items-center space-x-2 border-b border-gray-100 bg-white/60">
         <img
-          src={post.user.profileImage}
+          src={post.user.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.user.name}`}
           alt={post.user.name}
           className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
           onClick={() => onUserClick?.(post.user)}
@@ -115,6 +115,7 @@ function CommentBubble({ c, isReply, allUsers, onCommentUserClick, onReply, setS
   const [editing, setEditing] = React.useState(false);
   const [editText, setEditText] = React.useState(c.text ?? '');
   const { t, lang } = useDictionary();
+  if (!c.user) return null;
   return (
     <div className="flex items-start gap-2">
       <img
@@ -192,7 +193,11 @@ function CommentThread({ comment, replies, onCommentUserClick, onReply, comments
   const inlineInputRef = React.useRef<{ focus: () => void; setText: (t: string) => void } | null>(null);
   // รวม commenters + friends เพื่อ resolve mention click
   const allUsers = Array.from(
-    new Map([...comments.map(c => c.user), ...(mentionUsers ?? [])].map(u => [u.id, u])).values()
+    new Map(
+      [...comments.filter(c => !!c.user).map(c => c.user), ...(mentionUsers ?? [])]
+        .filter(u => !!u && !!u.id)
+        .map(u => [u.id, u])
+    ).values()
   );
   const { t } = useDictionary();
 
@@ -279,18 +284,24 @@ export const FeedItem: React.FC<FeedItemProps> = ({
 }) => {
   // รวม mentionUsers (friends) + mentionedUsers (tagged in this post) เป็น list เดียว
   const allMentionUsers = Array.from(
-    new Map([...mentionUsers, ...mentionedUsers].map(u => [u.id, u])).values()
+    new Map(
+      [...(mentionUsers ?? []), ...(mentionedUsers ?? [])]
+        .filter(u => !!u && !!u.id)
+        .map(u => [u.id, u])
+    ).values()
   );
   const [commentText, setCommentText] = useState('');
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionResults, setMentionResults] = useState<{id: string; name: string; profileImage: string}[]>([]);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [comments, setComments] = useState<Comment[]>(
-    (initialComments ?? []).map((c: any) => ({
-      ...c,
-      id: String(c.id ?? `init-${Math.random()}`),
-      user: { ...c.user, id: String(c.user?.id ?? '') },
-    }))
+    (initialComments ?? [])
+      .filter((c: any) => !!c && !!c.user)
+      .map((c: any) => ({
+        ...c,
+        id: String(c.id ?? `init-${Math.random()}`),
+        user: { ...c.user, id: String(c.user?.id ?? '') },
+      }))
   );
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [commentImage, setCommentImage] = useState<string | null>(null);
@@ -316,6 +327,8 @@ export const FeedItem: React.FC<FeedItemProps> = ({
   const [editPostText, setEditPostText] = useState(postText ?? '');
   const { t, lang } = useDictionary();
 
+  const safeUser = user || { id: 'unknown', name: t('common.unknownUser'), profileImage: '' };
+
   // sync เมื่อ parent อัปเดต initialBookmarked (เช่น หลัง BOOKMARK_IDS โหลดมา)
   useEffect(() => {
     setBookmarked(initialBookmarked);
@@ -335,6 +348,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
       const incomingPostId = String(packet.readInt());
       if (incomingPostId !== postId) return;
       const comment = JSON.parse(packet.readString()) as Comment;
+      if (!comment || !comment.user) return;
       const normalizedId = String(comment.id);
       setComments(prev => {
         if (prev.some(c => String(c.id) === normalizedId)) return prev;
@@ -500,7 +514,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
             className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 cursor-pointer ring-2 ring-transparent hover:ring-[#5B65F2]/30 transition-all"
             onClick={onUserClick}
           >
-            <img src={user.profileImage} alt={user.name} className="w-full h-full object-cover" />
+            <img src={safeUser.profileImage} alt={safeUser.name} className="w-full h-full object-cover" />
           </div>
           <div>
             <div className="flex items-center flex-wrap gap-2">
@@ -508,7 +522,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                 className="font-bold text-gray-900 cursor-pointer hover:text-[#5B65F2] transition-colors text-[15px]"
                 onClick={onUserClick}
               >
-                {user.name}
+                {safeUser.name}
               </span>
               {groupName && (
                 <span className="inline-flex items-center gap-1 text-xs rounded-full bg-[#eff6ff] px-2 py-0.5 text-[#2563eb] font-semibold border border-[#bfdbfe]">
@@ -548,7 +562,7 @@ export const FeedItem: React.FC<FeedItemProps> = ({
                   transition={{ duration: 0.1 }}
                   className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-20"
                 >
-                  {user.id === Global.user.id && (
+                  {safeUser.id === Global.user.id && (
                     <>
                       <button
                         onClick={() => { setShowPostMenu(false); setEditPostText(postText ?? ''); setEditingPost(true); }}

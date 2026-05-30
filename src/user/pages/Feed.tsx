@@ -364,11 +364,12 @@ function Feed({ onUserClick, onSharePost, onPostClick, mentionUsers = [], scroll
                             return true;
                         })
                         .map((post) => {
+                        if (!post) return null;
                         const reactionsCount: Record<string, number> = {};
                         const reactedUsers: Record<string, string[]> = {};
                         (post.reactions ?? []).forEach(r => {
-                            reactionsCount[r.type] = r.users.length;
-                            reactedUsers[r.type] = r.users;
+                            reactionsCount[r.type] = (r.users ?? []).length;
+                            reactedUsers[r.type] = r.users ?? [];
                         });
                         return (
                             <FeedItem

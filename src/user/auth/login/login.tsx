@@ -82,6 +82,7 @@ export default function Login() {
                     <ButtonDefault label={t('auth.login')} onClick={handleLogin} />
                 </div>
 
+                {/*
                 <div className="mt-6 flex items-center space-x-3">
                     <div className="flex-1 h-[1px] bg-gray-100"></div>
                     <span className="text-xs text-gray-400 font-medium">{t('auth.orLoginWith')}</span>
@@ -139,7 +140,8 @@ export default function Login() {
                         <span className="text-sm font-bold">{isGoogleLoading ? t('common.loading') : 'Google'}</span>
                     </button>
                 </div>
-
+                */}
+                
                 <div className="mt-8 pt-6 border-t border-[var(--border)] text-center">
                     <p className="text-sm text-gray-600">
                         {t('auth.noAccount')}{' '}

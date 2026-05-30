@@ -55,34 +55,42 @@ export const PostModal: React.FC<PostModalProps> = ({ postId, onClose, onUserCli
                 <div className="flex items-center justify-center py-16">
                   <div className="w-8 h-8 border-4 border-[#5B65F2]/30 border-t-[#5B65F2] rounded-full animate-spin" />
                 </div>
-              ) : post ? (
-                <FeedItem
-                  postId={post.id}
-                  user={post.user}
-                  onUserClick={() => { onUserClick?.(post.user); onClose(); }}
-                  postText={post.text}
-                  postImageUrl={post.imageUrl}
-                  postVideoUrl={post.videoUrl}
-                  feeling={post.feeling}
-                  stickerUrl={post.stickerUrl}
-                  groupName={post.groupName}
-                  sharedPost={post.sharedPost}
-                  initialReactionsCount={Object.fromEntries((post.reactions ?? []).map(r => [r.type, r.users.length]))}
-                  initialReactedUsers={Object.fromEntries((post.reactions ?? []).map(r => [r.type, r.users]))}
-                  initialComments={post.comments}
-                  onReact={(type) => {
-                    if (type) net.reactPost(Number(post.id), type);
-                    else net.unreactPost(Number(post.id));
-                  }}
-                  onComment={(text, img, sticker, replyToId) =>
-                    net.createComment(Number(post.id), text, img, sticker, replyToId ? Number(replyToId) : undefined)
-                  }
-                  onShare={() => net.createPost({ sharedFromId: Number(post.id) })}
-                  onCommentUserClick={(u) => { onUserClick?.(u); onClose(); }}
-                  mentionUsers={mentionUsers}
-                  mentionedUsers={post.mentionedUsers}
-                />
-              ) : (
+              ) : post ? (() => {
+                const reactionsCount: Record<string, number> = {};
+                const reactedUsers: Record<string, string[]> = {};
+                (post.reactions ?? []).forEach(r => {
+                  reactionsCount[r.type] = (r.users ?? []).length;
+                  reactedUsers[r.type] = r.users ?? [];
+                });
+                return (
+                  <FeedItem
+                    postId={post.id}
+                    user={post.user}
+                    onUserClick={() => { onUserClick?.(post.user); onClose(); }}
+                    postText={post.text}
+                    postImageUrl={post.imageUrl}
+                    postVideoUrl={post.videoUrl}
+                    feeling={post.feeling}
+                    stickerUrl={post.stickerUrl}
+                    groupName={post.groupName}
+                    sharedPost={post.sharedPost}
+                    initialReactionsCount={reactionsCount}
+                    initialReactedUsers={reactedUsers}
+                    initialComments={post.comments}
+                    onReact={(type) => {
+                      if (type) net.reactPost(Number(post.id), type);
+                      else net.unreactPost(Number(post.id));
+                    }}
+                    onComment={(text, img, sticker, replyToId) =>
+                      net.createComment(Number(post.id), text, img, sticker, replyToId ? Number(replyToId) : undefined)
+                    }
+                    onShare={() => net.createPost({ sharedFromId: Number(post.id) })}
+                    onCommentUserClick={(u) => { onUserClick?.(u); onClose(); }}
+                    mentionUsers={mentionUsers}
+                    mentionedUsers={post.mentionedUsers}
+                  />
+                );
+              })() : (
                 <div className="text-center py-16 text-gray-400 text-sm">ไม่พบโพสต์</div>
               )}
             </div>

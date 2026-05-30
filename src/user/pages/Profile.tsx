@@ -204,12 +204,16 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick, o
     Global.user.profileImage = localUrl;
     net.uploadProfileImage(file, Global.user.id)
       .then(url => {
+        console.log('[Profile] profile image changed', { userId: Global.user.id, url });
         setProfileImage(url);
         Global.user.profileImage = url;
         updateStoredField({ profileImage: url });
         modal.success(t('profile.uploadSuccess'));
       })
-      .catch(() => modal.error(t('profile.uploadError')));
+      .catch(error => {
+        console.error('[Profile] uploadProfileImage failed', error);
+        modal.error(t('profile.uploadError'));
+      });
   };
 
   const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -429,11 +433,12 @@ export default function Profile({ user, onEditClick, onSharePost, onUserClick, o
               </div>
             ) : posts.length > 0 ? (
               posts.map((post, i) => {
+                if (!post) return null;
                 const reactionsCount: Record<string, number> = {};
                 const reactedUsers: Record<string, string[]> = {};
                 (post.reactions ?? []).forEach(r => {
-                  reactionsCount[r.type] = r.users.length;
-                  reactedUsers[r.type] = r.users;
+                  reactionsCount[r.type] = (r.users ?? []).length;
+                  reactedUsers[r.type] = r.users ?? [];
                 });
                 return (
                   <motion.div key={post.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>

@@ -15,12 +15,45 @@ export default function AuditLogPage({ api }: Props) {
   const { t } = useDictionary();
 
   const actionLabel: Record<string, { label: string; color: string }> = {
-    ban_user:       { label: t('admin.actionBanUser'),      color: 'bg-red-100 text-red-700' },
-    unban_user:     { label: t('admin.actionUnbanUser'),    color: 'bg-green-100 text-green-700' },
-    delete_post:    { label: t('admin.actionDeletePost'),   color: 'bg-orange-100 text-orange-700' },
-    restore_post:   { label: t('admin.actionRestorePost'),  color: 'bg-blue-100 text-blue-700' },
-    dismiss_report: { label: t('admin.actionDismissReport'),color: 'bg-gray-100 text-gray-600' },
+    ban_user:           { label: t('admin.actionBanUser'),      color: 'bg-red-100 text-red-700' },
+    unban_user:         { label: t('admin.actionUnbanUser'),    color: 'bg-green-100 text-green-700' },
+    delete_post:        { label: t('admin.actionDeletePost'),   color: 'bg-orange-100 text-orange-700' },
+    restore_post:       { label: t('admin.actionRestorePost'),  color: 'bg-blue-100 text-blue-700' },
+    dismiss_report:     { label: t('admin.actionDismissReport'),color: 'bg-gray-100 text-gray-600' },
+    update_profile_image: { label: t('admin.actionUpdateProfileImage'), color: 'bg-indigo-100 text-indigo-700' },
+    update_cover_image:   { label: t('admin.actionUpdateCoverImage'),   color: 'bg-cyan-100 text-cyan-700' },
   };
+
+  const parseImageChangeDetail = (log: Log) => {
+    if (!log.detail) return null;
+    const match = log.detail.match(/จาก\s+(.*?)\s+เป็น\s+(.*)$/);
+    if (!match) return null;
+    const from = match[1]?.trim();
+    const to = match[2]?.trim();
+    return { from, to };
+  };
+
+  const renderImageChange = (log: Log) => {
+    const imageChange = parseImageChangeDetail(log);
+    if (!imageChange) return null;
+    const { from, to } = imageChange;
+    if (from === '(none)' && to === '(none)') return null;
+
+    return (
+      <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
+        <div className="flex items-center gap-2">
+          <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+            {from && from !== '(none)' ? <img src={from} alt="ก่อนเปลี่ยน" className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full text-gray-400">ก่อน</div>}
+          </div>
+          <span>→</span>
+          <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+            {to && to !== '(none)' ? <img src={to} alt="หลังเปลี่ยน" className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full text-gray-400">หลัง</div>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
 
   const fetchLogs = async (p = page) => {
     setLoading(true);
@@ -79,6 +112,7 @@ export default function AuditLogPage({ api }: Props) {
                       {log.postId && <span className="text-[#5B65F2]">{t('admin.postId')}{log.postId}</span>}
                     </div>
                     {log.detail && <p className="text-xs text-gray-400 mt-0.5 truncate">{log.detail}</p>}
+                    {renderImageChange(log)}
                   </div>
                   <span className="text-[11px] text-gray-400 flex-shrink-0">
                     {new Date(log.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}

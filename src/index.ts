@@ -182,8 +182,8 @@ const server = serve({
         hmr: true,
         console: true,
     },
-    port: 3000,
-    hostname: '0.0.0.0',
+    port: process.env.PORT || 3000,
+    hostname: process.env.HOSTNAME || '0.0.0.0',
 });
 
 console.log(`🚀 Server running at ${server.url}`);

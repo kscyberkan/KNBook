@@ -525,11 +525,14 @@ class NetworkClient {
 
     // ─── Upload helpers ───────────────────────────────────────────────────────
     async uploadProfileImage(file: File, userId: string): Promise<string> {
+        console.log('[Profile] uploadProfileImage start', { userId, fileName: file.name, fileType: file.type });
         const url = await uploadFile(file, 'profile', userId);
+        console.log('[Profile] uploadProfileImage uploaded', { userId, url });
         // บันทึกลง DB ผ่าน packet
         const p = new Packet(PacketCS.UPDATE_PROFILE_IMAGE);
         p.writeString(url);
         this.send(p);
+        console.log('[Profile] update profile image packet sent', { userId, url });
         return url;
     }
 

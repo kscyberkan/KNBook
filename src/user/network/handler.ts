@@ -150,6 +150,7 @@ function requireAuth(socket: WS): number | null {
 function groupReactions(raw: { type: string; userId: number; user: { name: string } }[]): { type: string; users: string[] }[] {
     const map = new Map<string, string[]>();
     for (const r of (raw ?? [])) {
+        if (!r.user) continue;
         if (!map.has(r.type)) map.set(r.type, []);
         map.get(r.type)!.push(r.user.name);
     }
@@ -196,6 +197,8 @@ function extractMentionNames(text: string | null | undefined, knownNames: string
 }
 
 function normalizePost(p: any): any {
+    if (!p) return null;
+
     // รวม users ที่รู้จักจาก post + comments
     const knownUsers: Map<string, any> = new Map();
     if (p.user) knownUsers.set(String(p.user.id), { ...p.user, id: String(p.user.id) });
@@ -230,12 +233,12 @@ function normalizePost(p: any): any {
     return {
         ...p,
         id: String(p.id),
-        user: { ...p.user, id: String(p.user.id) },
+        user: p.user ? { ...p.user, id: String(p.user.id) } : null,
         reactions: groupReactions(p.reactions ?? []),
         comments: (p.comments ?? []).map((c: any) => ({
             ...c,
             id: String(c.id),
-            user: { ...c.user, id: String(c.user.id) },
+            user: c.user ? { ...c.user, id: String(c.user.id) } : null,
             replyTo: c.replyToId ? String(c.replyToId) : undefined,
             replyToId: undefined,
             replyToName: c.replyToComment?.user?.name ?? undefined,
@@ -782,7 +785,24 @@ async function recvUpdateProfileImage(socket: WS, packet: Packet): Promise<void>
     const imageUrl = packet.readString();
     if (!imageUrl) { sendError(socket, 'Missing imageUrl'); return; }
 
+    const user = await getUserById(userId);
+    const previousImage = user?.profileImage ?? null;
+
     await updateUser(userId, { profileImage: imageUrl });
+    await prisma.profileImageHistory.create({
+        data: {
+            userId,
+            oldUrl: previousImage,
+            newUrl: imageUrl,
+        },
+    });
+    await prisma.adminLog.create({
+        data: {
+            action: 'update_profile_image',
+            targetId: userId,
+            detail: `เปลี่ยนรูปโปรไฟล์จาก ${previousImage ?? '(none)'} เป็น ${imageUrl}`,
+        },
+    });
 
     const p = new Packet(PacketSC.PROFILE_IMAGE_UPDATED);
     p.writeInt(userId);
@@ -797,7 +817,17 @@ async function recvUpdateCoverImage(socket: WS, packet: Packet): Promise<void> {
     const imageUrl = packet.readString();
     if (!imageUrl) { sendError(socket, 'Missing imageUrl'); return; }
 
+    const user = await getUserById(userId);
+    const previousImage = user?.coverImage ?? '(none)';
+
     await updateUser(userId, { coverImage: imageUrl });
+    await prisma.adminLog.create({
+        data: {
+            action: 'update_cover_image',
+            targetId: userId,
+            detail: `เปลี่ยนรูปปกจาก ${previousImage} เป็น ${imageUrl}`,
+        },
+    });
 
     const p = new Packet(PacketSC.COVER_IMAGE_UPDATED);
     p.writeInt(userId);
@@ -1059,7 +1089,7 @@ async function recvGetBookmarks(socket: WS, packet: Packet): Promise<void> {
     if (!userId) return;
     const offset = packet.readInt();
     const rows = await getBookmarks(userId, 10, offset);
-    const posts = rows.map(r => normalizePostForApi(r.post));
+    const posts = await Promise.all(rows.map(r => normalizePostForApi(r.post)));
     const p = new Packet(PacketSC.BOOKMARK_LIST);
     p.writeString(JSON.stringify(posts));
     p.writeBool(rows.length === 10);

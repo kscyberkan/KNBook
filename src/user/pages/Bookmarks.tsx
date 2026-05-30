@@ -101,8 +101,15 @@ export default function Bookmarks({ onUserClick, onBack, onPostClick }: Props) {
         ) : (
         <>
           {posts.map(post => {
-            const reactionsCount = Object.fromEntries((post.reactions ?? []).map(r => [r.type, r.users.length]));
-            const reactedUsers = Object.fromEntries((post.reactions ?? []).map(r => [r.type, r.users]));
+            if (!post) return null;
+            const reactionsCount: Record<string, number> = {};
+            const reactedUsers: Record<string, string[]> = {};
+            
+            (post.reactions ?? []).forEach(r => {
+              reactionsCount[r.type] = (r.users ?? []).length;
+              reactedUsers[r.type] = r.users ?? [];
+            });
+
             return (
               <FeedItem
                 key={post.id}

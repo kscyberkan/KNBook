@@ -40,6 +40,7 @@ model User {
   groupMembers     GroupMember[]
   groupMessages    GroupMessage[]
   groupMessageReactions GroupMessageReaction[]
+  profileImageHistories ProfileImageHistory[]
 }
 
 model Post {
@@ -158,6 +159,16 @@ model AdminLog {
   postId    Int?
   detail    String?
   createdAt DateTime @default(now())
+}
+
+model ProfileImageHistory {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  oldUrl    String?
+  newUrl    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Report {
