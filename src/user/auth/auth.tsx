@@ -46,11 +46,9 @@ function Auth(props: AuthProps) {
         // resume ถูก reject (token หมดอายุ หรือถูกแบน)
         const unsubReject = net.on(PacketSC.REJECT_LOGIN, (packet) => {
             const msg = packet.readString?.() ?? '';
-            if (msg.includes('ระงับ') || msg.includes('แบน')) {
-                auth.removeLoginData();
-                setData(false);
-                modal.warning(msg);
-            }
+            auth.removeLoginData();
+            setData(false);
+            if (msg) modal.warning(msg);
         });
 
         lineAuth.init().finally(() => {
